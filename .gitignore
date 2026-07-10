@@ -1,0 +1,17 @@
+# Office 임시/잠금 파일
+~$*
+*.tmp
+
+# 백업 파일
+*_backup_*
+*_backup_*.html
+*_backup_*.pptx
+
+# OS 부산물
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# 스크래치/로컬
+scratchpad/
+.claude/settings.local.json

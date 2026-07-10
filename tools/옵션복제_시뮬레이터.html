@@ -1,0 +1,1027 @@
+<meta charset="utf-8">
+<title>변동성 옵션복제 시뮬레이터 — 이론가 vs 몬테카를로 Dynamic Hedging</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2b3444;
+    --ink:#e6edf3; --muted:#8b98a9; --dim:#5c6b7e;
+    --accent:#4da3ff; --accent2:#7c5cff;
+    --up:#2ec39b; --down:#ff5c72; --warn:#ffb454; --grid:#232c3a;
+    --putc:#ff5c72; --koc:#4da3ff; --sprc:#ffb454;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI","Malgun Gothic",system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.45}
+  h1,h2,h3,h4{margin:0;font-weight:700}
+  .wrap{max-width:1680px;margin:0 auto;padding:16px 20px 60px}
+  header.top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:14px}
+  header.top h1{font-size:19px;letter-spacing:-.2px}
+  header.top .sub{color:var(--muted);font-size:12px}
+  header.top .tag{margin-left:auto;color:var(--dim);font-size:11px}
+
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+  .ctl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px 14px}
+  .fld{display:flex;flex-direction:column;gap:3px}
+  .fld label{font-size:11px;color:var(--muted)}
+  .fld input,.fld select{background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    border-radius:7px;padding:6px 8px;font-size:13px;font-variant-numeric:tabular-nums}
+  .fld input:focus,.fld select:focus{outline:none;border-color:var(--accent)}
+  .fld .unit{font-size:10px;color:var(--dim)}
+
+  fieldset{border:1px solid var(--line);border-radius:10px;padding:10px 14px 12px;margin:0 0 12px}
+  legend{font-size:12px;color:var(--accent);padding:0 6px;font-weight:700}
+
+  .strat-row{display:flex;flex-wrap:wrap;gap:10px}
+  .strat-card{flex:1 1 300px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:280px}
+  .strat-card.off{opacity:.42}
+  .strat-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .strat-head input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent)}
+  .strat-head .dot{width:10px;height:10px;border-radius:3px}
+  .strat-head h4{font-size:13px}
+  .strat-body{display:grid;grid-template-columns:1fr 1fr;gap:7px 10px}
+  .strat-body.hide{display:none}
+
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
+  button.run{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;
+    font-weight:700;font-size:13px;padding:9px 20px;border-radius:9px;cursor:pointer}
+  button.run:active{transform:translateY(1px)}
+  button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--muted);
+    padding:8px 14px;border-radius:9px;cursor:pointer;font-size:12px}
+  .status{color:var(--muted);font-size:12px}
+  .status b{color:var(--ink)}
+
+  .parallel{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:1100px){.parallel{grid-template-columns:1fr}}
+  .col{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .col > .col-head{padding:11px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;background:var(--panel2)}
+  .col-head .pill{font-size:10px;padding:2px 8px;border-radius:20px;background:#0d1117;border:1px solid var(--line);color:var(--muted)}
+  .col-head h2{font-size:15px}
+  .col-head .desc{color:var(--dim);font-size:11px;margin-left:auto;text-align:right;max-width:48%}
+  .col-body{padding:6px 14px 16px}
+
+  .scard{border-bottom:1px solid var(--grid);padding:13px 0}
+  .scard:last-child{border-bottom:none}
+  .scard .sc-title{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .scard .sc-title .dot{width:9px;height:9px;border-radius:3px}
+  .scard .sc-title h3{font-size:13px}
+  .scard .sc-title .badge{margin-left:auto;font-size:10px;color:var(--dim)}
+
+  .stat-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 9px;min-width:74px}
+  .stat .k{font-size:10px;color:var(--muted)}
+  .stat .v{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+  .v.pos{color:var(--up)} .v.neg{color:var(--down)}
+
+  table.greeks{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;margin-bottom:6px}
+  table.greeks td{padding:3px 6px;border-bottom:1px solid var(--grid);font-size:12px}
+  table.greeks td:first-child{color:var(--muted)}
+  table.greeks td:last-child{text-align:right;font-weight:600}
+
+  canvas{width:100%;display:block;background:transparent}
+  .chart-cap{font-size:10px;color:var(--dim);margin:2px 0 8px}
+  .two-charts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:640px){.two-charts{grid-template-columns:1fr}}
+
+  .empty{color:var(--dim);text-align:center;padding:40px 10px;font-size:13px}
+  .legend-inline{display:flex;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--muted);margin:2px 0 6px}
+  .legend-inline span{display:inline-flex;align-items:center;gap:4px}
+  .legend-inline i{width:14px;height:3px;border-radius:2px;display:inline-block}
+  .note{font-size:10.5px;color:var(--dim);margin-top:4px}
+  details.formula{margin-top:10px}
+  details.formula summary{cursor:pointer;color:var(--muted);font-size:11px}
+  details.formula .fbody{font-size:11px;color:var(--muted);padding:6px 4px;line-height:1.7;font-family:"Consolas",monospace}
+  .warnbox{background:#2a1e12;border:1px solid #5a3d1c;color:var(--warn);border-radius:8px;padding:7px 10px;font-size:11px;margin-top:8px;display:none}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>변동성 옵션복제 시뮬레이터</h1>
+    <span class="sub">이론가 모형(Black-Scholes / Barrier) &nbsp;∥&nbsp; 몬테카를로 Dynamic Delta-Hedging 복제</span>
+    <span class="tag">기초자산 기본값: KOSPI200 · 미래에셋자산운용 AI금융공학운용부문 (내부 검토용)</span>
+  </header>
+
+  <!-- ============ CONTROLS ============ -->
+  <div class="controls">
+    <fieldset>
+      <legend>시장·옵션 공통 변수</legend>
+      <div class="ctl-grid">
+        <div class="fld"><label>기초자산 현재가 S₀</label><input id="S0" type="number" value="100" step="1"><span class="unit">기준=100 (지수/주가 상대값)</span></div>
+        <div class="fld"><label>만기 T</label><input id="Tm" type="number" value="12" step="0.5"><span class="unit">개월</span></div>
+        <div class="fld"><label>변동성 σ</label><input id="vol" type="number" value="50" step="0.5"><span class="unit">연율 %</span></div>
+        <div class="fld"><label>무위험금리 r</label><input id="rate" type="number" value="3.0" step="0.1"><span class="unit">연율 %</span></div>
+        <div class="fld"><label>배당수익률 q</label><input id="div" type="number" value="2.0" step="0.1"><span class="unit">연율 %</span></div>
+        <div class="fld"><label>투자원금 (Notional)</label><input id="notional" type="number" value="1000000000" step="100000000"><span class="unit">원 · 손익 %는 원금 대비</span></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>전략 선택 (개별 · 복수 · 전체 선택 가능)</legend>
+      <div class="strat-row">
+
+        <!-- Strategy 1: Short Put replication -->
+        <div class="strat-card" id="card-put">
+          <div class="strat-head">
+            <input type="checkbox" id="on-put" checked>
+            <span class="dot" style="background:var(--putc)"></span>
+            <h4>① 풋 매도 복제 (Short Put)</h4>
+          </div>
+          <div class="strat-body">
+            <div class="fld"><label>행사가 K (S₀ 대비)</label><input id="put-strike" type="number" value="100" step="1"><span class="unit">% (OTM&lt;100)</span></div>
+            <div class="fld"><label>복제 비율</label><input id="put-weight" type="number" value="100" step="5"><span class="unit">% (노셔널 배분)</span></div>
+          </div>
+        </div>
+
+        <!-- Strategy 2: Knock-out (down-and-out) put buy -->
+        <div class="strat-card" id="card-ko">
+          <div class="strat-head">
+            <input type="checkbox" id="on-ko" checked>
+            <span class="dot" style="background:var(--koc)"></span>
+            <h4>② Knock-Out 풋 매수 (Down-and-Out Put)</h4>
+          </div>
+          <div class="strat-body">
+            <div class="fld"><label>행사가 K (S₀ 대비)</label><input id="ko-strike" type="number" value="100" step="1"><span class="unit">%</span></div>
+            <div class="fld"><label>낙아웃 배리어 H</label><input id="ko-barrier" type="number" value="60" step="1"><span class="unit">% (H&lt;K)</span></div>
+            <div class="fld"><label>리베이트 (낙아웃 시)</label><input id="ko-rebate" type="number" value="0" step="0.5"><span class="unit">% (S₀대비, 만기지급)</span></div>
+            <div class="fld"><label>복제 비율</label><input id="ko-weight" type="number" value="100" step="5"><span class="unit">% (노셔널 배분)</span></div>
+          </div>
+        </div>
+
+        <!-- Strategy 3: Vertical spread buy -->
+        <div class="strat-card" id="card-spr">
+          <div class="strat-head">
+            <input type="checkbox" id="on-spr" checked>
+            <span class="dot" style="background:var(--sprc)"></span>
+            <h4>③ 스프레드 매수 (Vertical Spread)</h4>
+          </div>
+          <div class="strat-body">
+            <div class="fld"><label>유형</label>
+              <select id="spr-type">
+                <option value="c">콜 스프레드 (상승참여·상단cap)</option>
+                <option value="p">풋 스프레드 (하락방어)</option>
+              </select>
+            </div>
+            <div class="fld"><label>매수 행사가 K₁</label><input id="spr-k1" type="number" value="110" step="1"><span class="unit">%</span></div>
+            <div class="fld"><label>매도 행사가 K₂</label><input id="spr-k2" type="number" value="140" step="1"><span class="unit">%</span></div>
+            <div class="fld"><label>복제 비율</label><input id="spr-weight" type="number" value="100" step="5"><span class="unit">% (노셔널 배분)</span></div>
+          </div>
+        </div>
+
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>몬테카를로 / Dynamic Hedging 설정</legend>
+      <div class="ctl-grid">
+        <div class="fld"><label>시뮬레이션 경로 수</label><input id="mc-paths" type="number" value="5000" step="500"><span class="unit">paths</span></div>
+        <div class="fld"><label>리밸런싱 주기</label>
+          <select id="mc-freq"><option value="1">매 영업일</option><option value="2">2영업일</option><option value="5">주간(5영업일)</option></select>
+        </div>
+        <div class="fld"><label>연간 영업일</label><input id="mc-days" type="number" value="252" step="1"><span class="unit">일</span></div>
+        <div class="fld"><label>거래비용</label><input id="mc-tc" type="number" value="15" step="1"><span class="unit">bps / 거래대금</span></div>
+        <div class="fld"><label>최대 편입비 (총 델타 상한)</label><input id="mc-maxw" type="number" value="180" step="10"><span class="unit">% · 배리어 근처 델타 폭증 제한</span></div>
+        <div class="fld"><label>경로 드리프트 μ</label>
+          <select id="mc-drift"><option value="rn">위험중립 (r−q)</option><option value="custom">실측/사용자</option></select>
+        </div>
+        <div class="fld" id="drift-fld" style="display:none"><label>μ (연율 %)</label><input id="mc-mu" type="number" value="5" step="0.5"><span class="unit">실물세계 드리프트</span></div>
+        <div class="fld"><label>난수 시드</label><input id="mc-seed" type="number" value="20260513" step="1"><span class="unit">재현성</span></div>
+      </div>
+    </fieldset>
+
+    <div class="actions">
+      <button class="run" id="btn-run">▶ 시뮬레이션 실행</button>
+      <button class="ghost" id="btn-reset">기본값 복원</button>
+      <span class="status" id="status">이론가는 입력 즉시 갱신됩니다. 몬테카를로는 [실행]을 누르세요.</span>
+    </div>
+    <div class="warnbox" id="warnbox"></div>
+  </div>
+
+  <!-- ============ PARALLEL DISPLAY ============ -->
+  <div class="parallel">
+    <div class="col">
+      <div class="col-head">
+        <span class="pill">이론가</span>
+        <h2>Black-Scholes / Barrier Closed-Form</h2>
+        <span class="desc">해석적 옵션가치 · 그릭스 · 만기 페이오프 · 델타 프로파일</span>
+      </div>
+      <div class="col-body" id="analytic-body"><div class="empty">전략을 선택하면 이론가가 표시됩니다.</div></div>
+    </div>
+    <div class="col">
+      <div class="col-head">
+        <span class="pill">몬테카를로</span>
+        <h2>Monte-Carlo Dynamic Hedging</h2>
+        <span class="desc">GBM 경로 · 일별 델타헤지 복제 · 복제오차 · 손익분포 · 목표달성확률</span>
+      </div>
+      <div class="col-body" id="mc-body"><div class="empty">[시뮬레이션 실행]을 누르면 몬테카를로 복제 결과가 표시됩니다.</div></div>
+    </div>
+  </div>
+
+  <!-- ============ 제안서용 대형 산점도 ============ -->
+  <div class="col" id="scatter-col" style="margin-top:16px">
+    <div class="col-head">
+      <span class="pill">제안서용</span>
+      <h2>Dynamic Hedging 수익률 산점도 (RCF 형식)</h2>
+      <span class="desc">X = 만기 기초자산 가격(S₀=100) · Y = 동적헤지 실현수익률 · 점 1개 = 시뮬레이션 1회</span>
+    </div>
+    <div class="col-body" id="scatter-body"><div class="empty">[시뮬레이션 실행] 시 전 경로의 (만기가격, 동적헤지 수익률) 산점도가 여기에 크게 표시됩니다.</div></div>
+  </div>
+
+  <!-- ============ 아웃라이어(이론가 대비 큰 복제오차) 상세 ============ -->
+  <div class="col" id="outlier-col" style="margin-top:16px">
+    <div class="col-head">
+      <span class="pill">복제오차 진단</span>
+      <h2>이론가 대비 큰 이탈 경로 Top 5</h2>
+      <span class="desc">동적헤지 실현수익률이 이론 손익에서 가장 많이 벗어난 경로 · 기초지수 추이 & 합성포트 수익률</span>
+    </div>
+    <div class="col-body" id="outlier-body"><div class="empty">[시뮬레이션 실행] 시 이론가 대비 복제오차가 가장 큰 5개 경로가 표시됩니다.</div></div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   변동성 옵션복제 시뮬레이터
+   - 이론가: Black-Scholes(유러피언) + Reiner-Rubinstein(배리어)
+   - MC    : GBM 경로 생성 + 일별 델타헤지로 옵션 페이오프 복제
+   - 그릭스/델타: 유러피언은 해석적, 배리어는 중심차분(FD)
+   ===================================================================== */
+
+/* ---------- 통계 유틸 ---------- */
+function erf(x){ // Abramowitz-Stegun 7.1.26, |err|<1.5e-7
+  const s=x<0?-1:1; x=Math.abs(x);
+  const t=1/(1+0.3275911*x);
+  const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);
+  return s*y;
+}
+function N(x){ return 0.5*(1+erf(x/Math.SQRT2)); }        // 표준정규 CDF
+function npdf(x){ return Math.exp(-0.5*x*x)/Math.sqrt(2*Math.PI); }
+
+/* 재현 가능한 정규난수 (mulberry32 + Box-Muller) */
+function makeRng(seed){
+  let a=seed>>>0; let spare=null;
+  const u=()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+  return ()=>{ if(spare!==null){const s=spare;spare=null;return s;}
+    let u1=0,u2=0; do{u1=u();}while(u1<=1e-12); u2=u();
+    const r=Math.sqrt(-2*Math.log(u1)), th=2*Math.PI*u2;
+    spare=r*Math.sin(th); return r*Math.cos(th); };
+}
+
+/* ---------- Black-Scholes ---------- */
+function bs(type,S,K,T,sig,r,q){ // type: 'c'|'p'
+  if(T<=0){const iv=type==='c'?Math.max(S-K,0):Math.max(K-S,0);
+    return {price:iv,delta:type==='c'?(S>K?1:0):(S<K?-1:0),gamma:0,vega:0,theta:0,rho:0};}
+  const sq=sig*Math.sqrt(T);
+  const d1=(Math.log(S/K)+(r-q+0.5*sig*sig)*T)/sq, d2=d1-sq;
+  const eqt=Math.exp(-q*T), ert=Math.exp(-r*T);
+  let price,delta,rho;
+  if(type==='c'){ price=S*eqt*N(d1)-K*ert*N(d2); delta=eqt*N(d1); rho=K*T*ert*N(d2)/100; }
+  else{ price=K*ert*N(-d2)-S*eqt*N(-d1); delta=eqt*(N(d1)-1); rho=-K*T*ert*N(-d2)/100; }
+  const gamma=eqt*npdf(d1)/(S*sq);
+  const vega=S*eqt*npdf(d1)*Math.sqrt(T)/100;      // per 1%p vol
+  const theta=(-(S*eqt*npdf(d1)*sig)/(2*Math.sqrt(T))
+    + (type==='c'? (q*S*eqt*N(d1)-r*K*ert*N(d2)) : (-q*S*eqt*N(-d1)+r*K*ert*N(-d2))))/365; // per day
+  return {price,delta,gamma,vega,theta,rho};
+}
+
+/* ---------- 배리어: 아웃 = 유러피언 − 인 (Reiner-Rubinstein) ---------- */
+/* down-and-in put (φ=-1, η=+1). MC로 자체검증됨(우측 패널). */
+function barrierInPrice(type,eta,S,K,H,T,sig,r,q){
+  const b=r-q, sq=sig*Math.sqrt(T);
+  const mu=(b-0.5*sig*sig)/(sig*sig);
+  const phi=type==='c'?1:-1;
+  const x1=Math.log(S/K)/sq+(1+mu)*sq;
+  const x2=Math.log(S/H)/sq+(1+mu)*sq;
+  const y1=Math.log(H*H/(S*K))/sq+(1+mu)*sq;
+  const y2=Math.log(H/S)/sq+(1+mu)*sq;
+  const ebr=Math.exp((b-r)*T), ert=Math.exp(-r*T);
+  const pw1=Math.pow(H/S,2*(mu+1)), pw2=Math.pow(H/S,2*mu);
+  const A=phi*S*ebr*N(phi*x1)-phi*K*ert*N(phi*x1-phi*sq);
+  const B=phi*S*ebr*N(phi*x2)-phi*K*ert*N(phi*x2-phi*sq);
+  const C=phi*S*ebr*pw1*N(eta*y1)-phi*K*ert*pw2*N(eta*y1-eta*sq);
+  const D=phi*S*ebr*pw1*N(eta*y2)-phi*K*ert*pw2*N(eta*y2-eta*sq);
+  // Down-and-in put (eta=1, phi=-1):  K>H -> B-C+D ,  K<H -> A
+  if(type==='p'&&eta===1) return K>H ? (B-C+D) : A;
+  if(type==='p'&&eta===-1) return K<H ? (A-B+D) : C;   // up-and-in put
+  if(type==='c'&&eta===1) return K>H ? C : (A-B+D);    // down-and-in call
+  return K>H ? A : (B-C+D);                            // up-and-in call
+}
+function downOutPut(S,K,H,T,sig,r,q){
+  if(S<=H) return 0;                       // 이미 배리어 터치 → 낙아웃
+  if(T<=0) return Math.max(K-S,0);
+  const van=bs('p',S,K,T,sig,r,q).price;
+  const din=barrierInPrice('p',1,S,K,H,T,sig,r,q);
+  return Math.max(van-din,0);
+}
+/* 하향 배리어 H(<S) 최초도달(first-passage) 위험중립 확률 — 리베이트 현가 계산용 */
+function pHitDown(S,H,tau,sig,r,q){
+  if(S<=H) return 1;
+  if(tau<=0) return 0;
+  const nu=r-q-0.5*sig*sig, s=sig*Math.sqrt(tau), a=Math.log(H/S);
+  return N((a-nu*tau)/s) + Math.pow(H/S,2*nu/(sig*sig))*N((a+nu*tau)/s);
+}
+
+/* =====================================================================
+   전략 정의
+   각 전략은 { key,name,color, price(S,tau), payoff(ST,alive),
+              premium0, targetK, isBarrier, extras } 를 노출.
+   price(): 현재 S·잔존만기 tau 에서의 "복제 대상 옵션 가치"(펀드 보유가치).
+   payoff(): 만기 페이오프(펀드 보유 기준).  손익%는 notional/S0 단위로 환산.
+   ===================================================================== */
+function buildStrategies(P){
+  const {S0,T,sig,r,q}=P, out=[];
+  const wtag=w=>`비율 ${(w*100).toFixed(0)}%`;
+
+  if(P.on.put){
+    const K=S0*P.put.strike/100, w=P.put.weight/100;
+    const prem0=bs('p',S0,K,T,sig,r,q).price;          // 수취 프리미엄(단위당, 비율 전)
+    out.push({
+      key:'put', name:'풋 매도 복제 (Short Put)', color:getComputedStyle(document.documentElement).getPropertyValue('--putc').trim(),
+      K, isBarrier:false, weight:w, premium0:-prem0*w,   // 보유가치 = -put (숏) × 비율
+      info:`행사가 K=${(K/S0*100).toFixed(1)}% · 프리미엄 ${(prem0/S0*100).toFixed(2)}% · ${wtag(w)}`,
+      price:(S,tau)=> -bs('p',S,K,tau,sig,r,q).price*w,
+      delta:(S,tau)=> -bs('p',S,K,tau,sig,r,q).delta*w, // = +(1-e^{-qτ}N(d1))×w >0
+      greeks:(S,tau)=>{const g=bs('p',S,K,tau,sig,r,q);return{price:-g.price*w,delta:-g.delta*w,gamma:-g.gamma*w,vega:-g.vega*w,theta:-g.theta*w,rho:-g.rho*w};},
+      payoff:(ST)=> -Math.max(K-ST,0)*w,
+      pnlUnit:(ST)=> (prem0*Math.exp(r*T) - Math.max(K-ST,0))*w,
+    });
+  }
+
+  if(P.on.ko){
+    const K=S0*P.ko.strike/100, H=S0*P.ko.barrier/100, R=S0*P.ko.rebate/100, w=P.ko.weight/100; // R=리베이트
+    const base=(S,tau)=> downOutPut(S,K,H,tau,sig,r,q) + (R>0? R*Math.exp(-r*tau)*pHitDown(S,H,tau,sig,r,q):0);
+    const prem0=base(S0,T);
+    out.push({
+      key:'ko', name:'Knock-Out 풋 매수 (Down-and-Out Put)', color:getComputedStyle(document.documentElement).getPropertyValue('--koc').trim(),
+      K,H, rebate:R, isBarrier:true, weight:w, premium0:prem0*w,
+      info:`K=${P.ko.strike}% · H=${P.ko.barrier}%${R>0?` · 리베이트 ${P.ko.rebate}%`:''} · 프리미엄 ${(prem0/S0*100).toFixed(2)}% · ${wtag(w)}`,
+      price:(S,tau)=> base(S,tau)*w,
+      delta:null, // FD (price가 이미 ×w)
+      payoff:(ST,alive)=> (alive? Math.max(K-ST,0):R)*w,          // 낙아웃 시 리베이트 R
+      pnlUnit:(ST,alive)=> ((alive?Math.max(K-ST,0):R) - prem0*Math.exp(r*T))*w,
+    });
+  }
+
+  if(P.on.spr){
+    const t=P.spr.type, K1=S0*P.spr.k1/100, K2=S0*P.spr.k2/100, w=P.spr.weight/100;
+    const v0=(S,tau)=> bs(t,S,K1,tau,sig,r,q).price - bs(t,S,K2,tau,sig,r,q).price;
+    const prem0=v0(S0,T);
+    const pay=(ST)=> t==='c' ? (Math.max(ST-K1,0)-Math.max(ST-K2,0)) : (Math.max(K1-ST,0)-Math.max(K2-ST,0));
+    out.push({
+      key:'spr', name:`스프레드 매수 (${t==='c'?'Call':'Put'} Spread)`, color:getComputedStyle(document.documentElement).getPropertyValue('--sprc').trim(),
+      K1,K2, isBarrier:false, weight:w, premium0:prem0*w,
+      info:`${t==='c'?'콜':'풋'} · K₁=${P.spr.k1}% K₂=${P.spr.k2}% · 순프리미엄 ${(prem0/S0*100).toFixed(2)}% · ${wtag(w)}`,
+      price:(S,tau)=> v0(S,tau)*w,
+      delta:(S,tau)=> (bs(t,S,K1,tau,sig,r,q).delta - bs(t,S,K2,tau,sig,r,q).delta)*w,
+      greeks:(S,tau)=>{const a=bs(t,S,K1,tau,sig,r,q),b=bs(t,S,K2,tau,sig,r,q);
+        return{price:(a.price-b.price)*w,delta:(a.delta-b.delta)*w,gamma:(a.gamma-b.gamma)*w,vega:(a.vega-b.vega)*w,theta:(a.theta-b.theta)*w,rho:(a.rho-b.rho)*w};},
+      payoff:(ST)=> pay(ST)*w,
+      pnlUnit:(ST)=> (pay(ST) - prem0*Math.exp(r*T))*w,
+    });
+  }
+  return out;
+}
+
+/* 델타(복제 헤지 비중, 단위당). 배리어는 중심차분. */
+function stratDelta(st,S,tau){
+  if(st.delta) return st.delta(S,tau);
+  const h=Math.max(S*1e-4,1e-6);
+  return (st.price(S+h,tau)-st.price(S-h,tau))/(2*h);
+}
+
+/* =====================================================================
+   입력 파싱
+   ===================================================================== */
+function readParams(){
+  const num=id=>parseFloat(document.getElementById(id).value);
+  const P={
+    S0:num('S0'), T:num('Tm')/12, sig:num('vol')/100, r:num('rate')/100, q:num('div')/100,
+    notional:num('notional'),
+    on:{put:document.getElementById('on-put').checked, ko:document.getElementById('on-ko').checked, spr:document.getElementById('on-spr').checked},
+    put:{strike:num('put-strike'), weight:num('put-weight')},
+    ko:{strike:num('ko-strike'), barrier:num('ko-barrier'), rebate:num('ko-rebate'), weight:num('ko-weight')},
+    spr:{type:document.getElementById('spr-type').value, k1:num('spr-k1'), k2:num('spr-k2'), weight:num('spr-weight')},
+    mc:{paths:Math.max(200,Math.round(num('mc-paths'))), freq:parseInt(document.getElementById('mc-freq').value),
+        days:Math.round(num('mc-days')), tc:num('mc-tc')/10000, maxW:num('mc-maxw')/100,
+        drift:document.getElementById('mc-drift').value, mu:num('mc-mu')/100, seed:Math.round(num('mc-seed'))}
+  };
+  return P;
+}
+function validate(P){
+  const w=[];
+  if(P.T<=0) w.push('만기는 0보다 커야 합니다.');
+  if(P.sig<=0) w.push('변동성은 0보다 커야 합니다.');
+  if(P.on.ko && P.ko.barrier>=P.ko.strike) w.push('② KO풋: 배리어 H는 행사가 K보다 낮아야 합니다 (H<K).');
+  if(P.on.ko && P.ko.barrier>=100) w.push('② KO풋: 다운아웃 배리어는 S₀보다 낮아야 의미가 있습니다 (H<100%).');
+  if(P.on.spr && P.spr.k1>=P.spr.k2) w.push('③ 스프레드: K₁ < K₂ 이어야 합니다 (매수행사가 < 매도행사가).');
+  if(!P.on.put&&!P.on.ko&&!P.on.spr) w.push('전략을 하나 이상 선택하세요.');
+  return w;
+}
+
+/* =====================================================================
+   캔버스 차트 헬퍼
+   ===================================================================== */
+function setupCanvas(cv,h){
+  const dpr=window.devicePixelRatio||1;
+  const w=cv.clientWidth||cv.parentElement.clientWidth;
+  cv.width=w*dpr; cv.height=h*dpr; cv.style.height=h+'px';
+  const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+  return {ctx,w,h};
+}
+const C={ink:'#e6edf3',muted:'#8b98a9',dim:'#5c6b7e',grid:'#232c3a',up:'#2ec39b',down:'#ff5c72',accent:'#4da3ff',warn:'#ffb454'};
+
+function drawLines(cv,series,opt){
+  opt=opt||{}; const {ctx,w,h}=setupCanvas(cv,opt.height||150);
+  const pl=opt.padL||42,pr=opt.padR||10,pt=12,pb=opt.padB||22;
+  let xs=[],ys=[]; series.forEach(s=>s.pts.forEach(p=>{xs.push(p[0]);ys.push(p[1]);}));
+  if(opt.xr){xs=opt.xr.slice();} if(opt.yr){ys=opt.yr.slice();}
+  let xmin=Math.min(...xs),xmax=Math.max(...xs),ymin=Math.min(...ys),ymax=Math.max(...ys);
+  if(opt.y0!==undefined){ymin=Math.min(ymin,opt.y0);ymax=Math.max(ymax,opt.y0);}
+  if(ymin===ymax){ymin-=1;ymax+=1;}
+  const padY=(ymax-ymin)*0.08; ymin-=padY; ymax+=padY;
+  const X=v=>pl+(v-xmin)/(xmax-xmin)*(w-pl-pr);
+  const Y=v=>pt+(1-(v-ymin)/(ymax-ymin))*(h-pt-pb);
+  ctx.clearRect(0,0,w,h);
+  // grid + y labels
+  ctx.font='9px Consolas,monospace'; ctx.textBaseline='middle';
+  for(let i=0;i<=4;i++){const yv=ymin+(ymax-ymin)*i/4,yy=Y(yv);
+    ctx.strokeStyle=C.grid;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pl,yy);ctx.lineTo(w-pr,yy);ctx.stroke();
+    ctx.fillStyle=C.dim;ctx.textAlign='right';ctx.fillText(opt.yfmt?opt.yfmt(yv):yv.toFixed(1),pl-4,yy);}
+  // zero line
+  if(ymin<0&&ymax>0){ctx.strokeStyle='#3a4658';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pl,Y(0));ctx.lineTo(w-pr,Y(0));ctx.stroke();}
+  // x labels
+  ctx.textAlign='center';ctx.textBaseline='top';
+  for(let i=0;i<=4;i++){const xv=xmin+(xmax-xmin)*i/4;
+    ctx.fillStyle=C.dim;ctx.fillText(opt.xfmt?opt.xfmt(xv):xv.toFixed(0),X(xv),h-pb+5);}
+  if(opt.strike){opt.strike.forEach(k=>{ctx.strokeStyle='#4a5568';ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(X(k),pt);ctx.lineTo(X(k),h-pb);ctx.stroke();ctx.setLineDash([]);});}
+  series.forEach(s=>{ctx.strokeStyle=s.color;ctx.lineWidth=s.w||1.6;ctx.beginPath();
+    s.pts.forEach((p,i)=>{const xx=X(p[0]),yy=Y(p[1]);i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);});ctx.stroke();
+    if(s.fill){ctx.lineTo(X(s.pts[s.pts.length-1][0]),Y(0));ctx.lineTo(X(s.pts[0][0]),Y(0));ctx.closePath();
+      ctx.fillStyle=s.fill;ctx.fill();}});
+}
+
+function drawHist(cv,data,opt){
+  opt=opt||{}; const {ctx,w,h}=setupCanvas(cv,opt.height||150);
+  const pl=42,pr=10,pt=12,pb=22, bins=opt.bins||40;
+  let lo=Math.min(...data),hi=Math.max(...data); if(lo===hi){lo-=1;hi+=1;}
+  const bw=(hi-lo)/bins, cnt=new Array(bins).fill(0);
+  data.forEach(v=>{let b=Math.floor((v-lo)/bw);if(b<0)b=0;if(b>=bins)b=bins-1;cnt[b]++;});
+  const cmax=Math.max(...cnt);
+  const X=v=>pl+(v-lo)/(hi-lo)*(w-pl-pr);
+  const Y=c=>pt+(1-c/cmax)*(h-pt-pb);
+  ctx.clearRect(0,0,w,h);
+  ctx.font='9px Consolas,monospace';
+  for(let i=0;i<=3;i++){const yy=pt+(h-pt-pb)*i/3;ctx.strokeStyle=C.grid;ctx.beginPath();ctx.moveTo(pl,yy);ctx.lineTo(w-pr,yy);ctx.stroke();}
+  for(let b=0;b<bins;b++){if(!cnt[b])continue;const x0=X(lo+b*bw),x1=X(lo+(b+1)*bw),y=Y(cnt[b]);
+    const mid=lo+(b+0.5)*bw;
+    ctx.fillStyle=opt.colorFn?opt.colorFn(mid):C.accent; ctx.globalAlpha=.85;
+    ctx.fillRect(x0,y,Math.max(1,x1-x0-1),h-pb-y);ctx.globalAlpha=1;}
+  ctx.textAlign='center';ctx.textBaseline='top';ctx.fillStyle=C.dim;
+  for(let i=0;i<=4;i++){const xv=lo+(hi-lo)*i/4;ctx.fillText(opt.xfmt?opt.xfmt(xv):xv.toFixed(1),X(xv),h-pb+5);}
+  // markers (mean, zero)
+  const mark=(v,col,lbl)=>{if(v<lo||v>hi)return;ctx.strokeStyle=col;ctx.lineWidth=1.4;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(X(v),pt);ctx.lineTo(X(v),h-pb);ctx.stroke();ctx.setLineDash([]);
+    if(lbl){ctx.fillStyle=col;ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText(lbl,X(v)+3,pt);}};
+  if(opt.zero!==undefined) mark(opt.zero,'#6b7a8d','');
+  if(opt.mean!==undefined) mark(opt.mean,C.warn,'μ');
+}
+
+/* 대형 산점도: X=만기 기초자산(%), Y=동적헤지 수익률(%). 점=경로. 구간평균선 오버레이 */
+function drawScatter(cv,xs,ys,opt){
+  opt=opt||{}; const {ctx,w,h}=setupCanvas(cv,opt.height||400);
+  const pl=58,pr=18,pt=16,pb=42, n=xs.length;
+  const sx=Float64Array.from(xs).sort(), sy=Float64Array.from(ys).sort();
+  const q=(a,p)=>a[Math.min(a.length-1,Math.max(0,Math.floor(p*a.length)))];
+  let xmin,xmax;
+  if(opt.xr){xmin=opt.xr[0];xmax=opt.xr[1];}                  // 고정 X범위(두 산점도 일치)
+  else{xmin=Math.min(q(sx,0.005),60); xmax=Math.max(q(sx,0.995),140);}
+  // Y범위: X범위 내 점들 기준 백분위
+  const yin=[]; for(let i=0;i<ys.length;i++){if(xs[i]>=xmin&&xs[i]<=xmax)yin.push(ys[i]);}
+  const syin=(yin.length?Float64Array.from(yin):sy).sort();
+  let ymin=q(syin,0.01), ymax=q(syin,0.99);
+  const yp=(ymax-ymin)*0.08||1; ymin-=yp; ymax+=yp;
+  if(xmin===xmax){xmin-=1;xmax+=1;} if(ymin===ymax){ymin-=1;ymax+=1;}
+  const X=v=>pl+(v-xmin)/(xmax-xmin)*(w-pl-pr);
+  const Y=v=>pt+(1-(v-ymin)/(ymax-ymin))*(h-pt-pb);
+  ctx.clearRect(0,0,w,h);
+  ctx.font='10px Consolas,monospace'; ctx.textBaseline='middle';
+  for(let i=0;i<=5;i++){const yv=ymin+(ymax-ymin)*i/5,yy=Y(yv);
+    ctx.strokeStyle=C.grid;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pl,yy);ctx.lineTo(w-pr,yy);ctx.stroke();
+    ctx.fillStyle=C.dim;ctx.textAlign='right';ctx.fillText(yv.toFixed(0)+'%',pl-6,yy);}
+  ctx.textAlign='center';ctx.textBaseline='top';
+  const xstep=opt.xstep||((xmax-xmin)/6);
+  for(let xv=Math.ceil(xmin/xstep)*xstep; xv<=xmax+1e-9; xv+=xstep){
+    ctx.strokeStyle=C.grid;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(X(xv),pt);ctx.lineTo(X(xv),h-pb);ctx.stroke();
+    ctx.fillStyle=C.dim;ctx.fillText(xv.toFixed(0),X(xv),h-pb+7);
+  }
+  if(ymin<0&&ymax>0){ctx.strokeStyle='#3a4658';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pl,Y(0));ctx.lineTo(w-pr,Y(0));ctx.stroke();}
+  if(xmin<100&&xmax>100){ctx.strokeStyle='#5a6b80';ctx.setLineDash([4,4]);ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(X(100),pt);ctx.lineTo(X(100),h-pb);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=C.dim;ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('S₀=100',X(100),pt+2);}
+  // 점 (그룹 단색; opt.color 없으면 부호별)
+  for(let i=0;i<n;i++){const x=xs[i],y=ys[i]; if(x<xmin||x>xmax||y<ymin||y>ymax)continue;
+    ctx.fillStyle=opt.color || (y>=0?'rgba(46,195,155,0.42)':'rgba(255,92,114,0.42)');
+    ctx.fillRect(X(x)-1.1,Y(y)-1.1,2.2,2.2);}
+  // 구간 평균선
+  const B=34, bs=new Array(B).fill(0), bc=new Array(B).fill(0);
+  for(let i=0;i<n;i++){const x=xs[i]; if(x<xmin||x>xmax)continue; let b=Math.floor((x-xmin)/(xmax-xmin)*B);
+    if(b<0)b=0; if(b>=B)b=B-1; bs[b]+=ys[i]; bc[b]++;}
+  ctx.strokeStyle=C.warn;ctx.lineWidth=2.2;ctx.beginPath();let started=false;
+  for(let b=0;b<B;b++){if(bc[b]<3)continue;const xv=xmin+(xmax-xmin)*(b+0.5)/B, yv=Math.max(ymin,Math.min(ymax,bs[b]/bc[b]));
+    const xx=X(xv),yy=Y(yv); started?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy); started=true;}
+  ctx.stroke();
+  // 축 제목
+  ctx.fillStyle=C.muted;ctx.font='11px sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText('만기 기초자산 가격 (S₀ = 100 기준)',(pl+w-pr)/2,h-4);
+  ctx.save();ctx.translate(15,(pt+(h-pb))/2);ctx.rotate(-Math.PI/2);ctx.textBaseline='top';
+  ctx.fillText('동적헤지 실현수익률 (%)',0,0);ctx.restore();
+}
+
+/* 제안서용 산점도 렌더 (합성 = 선택 전략의 동적헤지 수익률 합)
+   배리어 전략이 있으면 미터치/터치 두 산점도로 분리해서 그린다. */
+function renderScatter(P,strats,MC){
+  const host=document.getElementById('scatter-body');
+  if(!MC||!strats.length){host.innerHTML='<div class="empty">전략을 선택하고 시뮬레이션을 실행하세요.</div>';return;}
+  const n=MC.termS.length, S0=P.S0, hasB=strats.some(s=>s.isBarrier);
+  const build=(filter)=>{const X=[],Y=[];
+    for(let i=0;i<n;i++){ if(filter && !filter(i)) continue;
+      let s=0; for(let k=0;k<MC.res.length;k++) s+=MC.res[k].dhRet[i];
+      X.push(MC.termS[i]/S0*100); Y.push(s*100); }
+    return {X:Float64Array.from(X),Y:Float64Array.from(Y)};};
+  const groups = hasB
+    ? [{key:'nt',title:'① 배리어 미터치 (생존) 경로', desc:'KO 풋 하방보호 유지', color:'rgba(46,195,155,0.5)', data:build(i=>!MC.touched[i])},
+       {key:'t', title:'② 배리어 터치 (낙아웃) 경로', desc:'터치 즉시 KO 델타=0(기능정지) → 숏풋 하방 노출', color:'rgba(255,92,114,0.5)', data:build(i=>MC.touched[i])}]
+    : [{key:'all',title:'동적헤지 수익률 산점도', desc:'', color:'rgba(77,163,255,0.5)', data:build(null)}];
+  host.innerHTML = groups.map((g,idx)=>{
+    const d=g.data, m=d.Y.length;
+    if(!m) return `<div class="scard"><div class="sc-title"><h3>${g.title}</h3><span class="badge">해당 경로 0개</span></div><div class="empty">이 시나리오에 해당하는 경로가 없습니다 (배리어 도달 확률에 따라 달라짐).</div></div>`;
+    const s=stats(d.Y), pos=Array.from(d.Y).filter(v=>v>=0).length/m;
+    return `<div class="scard">
+      <div class="sc-title"><h3>${g.title}</h3><span class="badge">${m.toLocaleString()}경로 · 전체의 ${(m/n*100).toFixed(1)}%${g.desc?' · '+g.desc:''}</span></div>
+      <div class="stat-row" style="margin:2px 0 8px">
+        <div class="stat"><div class="k">평균</div><div class="v ${s.mean>=0?'pos':'neg'}">${s.mean.toFixed(2)}%</div></div>
+        <div class="stat"><div class="k">중앙값</div><div class="v ${s.med>=0?'pos':'neg'}">${s.med.toFixed(2)}%</div></div>
+        <div class="stat"><div class="k">수익(&ge;0)</div><div class="v">${(pos*100).toFixed(1)}%</div></div>
+        <div class="stat"><div class="k">5% VaR</div><div class="v neg">${s.p5.toFixed(2)}%</div></div>
+        <div class="stat"><div class="k">95%</div><div class="v pos">${s.p95.toFixed(2)}%</div></div>
+      </div>
+      <canvas class="cv-sc" data-idx="${idx}"></canvas>
+      <div class="chart-cap">X = 만기 기초자산 가격(S₀=100) · Y = 동적헤지 실현수익률(%, 거래비용·복제오차 포함) · 점 1개 = 시뮬 1회 · <span style="color:var(--warn)">노란선=구간 평균</span></div>
+    </div>`;
+  }).join('');
+  groups.forEach((g,idx)=>{ if(!g.data.Y.length)return;
+    drawScatter(host.querySelector(`canvas[data-idx="${idx}"]`), g.data.X, g.data.Y, {height:340,color:g.color,xr:[50,160],xstep:10});});
+}
+
+/* 이론가 대비 이탈 경로: 서로 다른 '유형'을 대표로 뽑아, 좌측 그래프(2/3)+우측 사유 설명(1/3) */
+function renderOutliers(P,strats,MC){
+  const host=document.getElementById('outlier-body');
+  if(!MC||!strats.length){host.innerHTML='<div class="empty">전략을 선택하고 실행하세요.</div>';return;}
+  const n=MC.termS.length, S0=P.S0, nSamp=MC.nSamp, T=P.T, maxW=(P.mc.maxW*100).toFixed(0);
+  const dhc=new Float64Array(n), poc=new Float64Array(n), dev=new Float64Array(n);
+  for(let i=0;i<n;i++){let d=0,po=0; for(let k=0;k<MC.res.length;k++){d+=MC.res[k].dhRet[i]; po+=MC.res[k].payoffRet[i];}
+    dhc[i]=d; poc[i]=po; dev[i]=Math.abs(d-po);}
+  const barriers=strats.filter(s=>s.isBarrier).map(s=>s.H);
+  const H=barriers.length?Math.max(...barriers):0, Hp=H/S0*100;
+  const tp=i=>MC.termS[i]/S0*100, mn=i=>MC.pathMin[i]/S0*100, mx=i=>MC.pathMax[i]/S0*100, sdev=i=>(dhc[i]-poc[i]);
+  const argmax=(filter,score)=>{let bi=-1,bs=-Infinity; for(let i=0;i<n;i++){if(!filter(i))continue; const s=score(i); if(s>bs){bs=s;bi=i;}} return bi;};
+  // 유형별 대표 경로(사유가 서로 다르게)
+  const cats=[
+    {key:'flat', name:'보합권인데 이탈', filter:i=>Math.abs(tp(i)-100)<10, score:i=>dev[i]},
+    {key:'near', name:'배리어 근처(미터치) 델타캡', filter:i=>!MC.touched[i]&&H&&tp(i)<=Hp+18&&tp(i)>=Hp, score:i=>dev[i]},
+    {key:'tdn',  name:'터치 → 이론 대비 하회', filter:i=>MC.touched[i]&&sdev(i)<0, score:i=>-sdev(i)},
+    {key:'tup',  name:'터치인데 이론 대비 상회', filter:i=>MC.touched[i]&&sdev(i)>0, score:i=>sdev(i)},
+    {key:'big',  name:'대형 변동 구간', filter:i=>tp(i)>=140||tp(i)<=55, score:i=>dev[i]},
+  ];
+  const picked=[];
+  cats.forEach(c=>{const bi=argmax(c.filter,c.score); if(bi>=0&&!picked.some(p=>p.pi===bi)) picked.push({pi:bi,cat:c});});
+  // 5개 미만이면 전체 최대이탈로 채움
+  const order=Array.from({length:n},(_,i)=>i).sort((a,b)=>dev[b]-dev[a]);
+  for(let k=0;k<order.length&&picked.length<5;k++){const bi=order[k]; if(!picked.some(p=>p.pi===bi)) picked.push({pi:bi,cat:{key:'top',name:'최대 이탈'}});}
+  const months=[]; for(let j=0;j<nSamp;j++) months.push(MC.sampleStep[j]/MC.nSteps*T*12);
+  const fmt=x=>x.toFixed(1);
+  function why(key,pi){const d=sdev(pi)*100, tpi=tp(pi), mni=mn(pi), mxi=mx(pi), ad=Math.abs(d).toFixed(1);
+    if(key==='flat') return `만기 지수 <b>${fmt(tpi)}%</b>로 보합권이지만 운용 중 <b>${fmt(mni)}%~${fmt(mxi)}%</b>로 크게 출렁였습니다. 잦은 리밸런싱(감마 트레이딩)·거래비용과 편입비 제약이 누적돼 이론 대비 <b>${ad}%p ${d>=0?'상회':'하회'}</b>. <b>보합이어도 경로 변동성</b>이 크면 복제오차가 생깁니다.`;
+    if(key==='near') return `지수가 배리어(${fmt(Hp)}%) 직전 <b>${fmt(mni)}%</b>까지 하락해 KO 델타가 급등, <b>편입비 상한 ${maxW}%</b>에 막혀 완전복제 불가. 이후 배리어를 지켜(미터치) 회복했지만 캡 구간의 미복제분이 이론 대비 <b>${ad}%p 하회</b>로 남았습니다.`;
+    if(key==='tdn') return `지수가 배리어(${fmt(Hp)}%)를 <b>터치→KO 소멸(델타=0)</b>. 하방보호가 사라진 뒤 숏풋만 남아 만기 <b>${fmt(tpi)}%</b>에서 이론(리베이트/프리미엄)보다 <b>${ad}%p 크게 하회</b>. 낙아웃 시점의 급락 갭이 원인.`;
+    if(key==='tup') return `배리어 터치 직전 <b>높은 편입비</b>로 현물을 다량 보유한 상태에서 낙아웃 전후 지수가 <b>급반등</b>(최저 ${fmt(mni)}% → 만기 ${fmt(tpi)}%). 보유 현물 평가익이 커져 이론 대비 <b>${ad}%p 상회</b>. 낙아웃 타이밍의 우연적 이익.`;
+    if(key==='big') return `지수가 만기 <b>${fmt(tpi)}%</b>로 대형 ${tpi>=100?'상승':'하락'}(최저 ${fmt(mni)}%/최고 ${fmt(mxi)}%). 이산 리밸런싱·편입비 상한으로 감마 손익이 이론과 <b>${ad}%p</b> 벌어졌습니다.`;
+    return `이론 대비 이탈이 큰 경로. 만기 ${fmt(tpi)}%, 경로 ${fmt(mni)}~${fmt(mxi)}%, 이탈 ${ad}%p.`;
+  }
+  host.innerHTML=picked.map((o,rank)=>{const pi=o.pi;
+    return `<div class="scard">
+      <div class="sc-title"><span class="dot" style="background:${MC.touched[pi]?'var(--down)':'var(--up)'}"></span>
+        <h3>#${rank+1} · ${o.cat.name}</h3>
+        <span class="badge">만기 ${fmt(tp(pi))}% · ${MC.touched[pi]?'터치':'미터치'} · 이탈 ${(sdev(pi)*100>=0?'+':'')}${(sdev(pi)*100).toFixed(1)}%p</span></div>
+      <div style="display:flex;gap:14px;align-items:stretch;flex-wrap:wrap">
+        <div style="flex:2;min-width:280px">
+          <div class="legend-inline" style="margin:0 0 4px">
+            <span><i style="background:#4da3ff"></i>지수 수익률</span>
+            <span><i style="background:#2ec39b"></i>동적헤지 수익률</span>
+            <span><i style="background:var(--warn)"></i>이론 손익</span>
+          </div>
+          <canvas class="cv-o" data-pi="${pi}"></canvas>
+          <div class="chart-cap">X = 시점(개월) · Y = 수익률(%)</div>
+        </div>
+        <div style="flex:1;min-width:180px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px">
+          <div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:6px">왜 이탈했나</div>
+          <div style="font-size:11.5px;color:var(--muted);line-height:1.7">${why(o.cat.key,pi)}</div>
+          <div style="margin-top:8px;font-size:11px;color:var(--dim);border-top:1px solid var(--grid);padding-top:6px">
+            동적헤지 <b style="color:${dhc[pi]>=0?'var(--up)':'var(--down)'}">${(dhc[pi]*100).toFixed(1)}%</b> vs 이론 <b>${(poc[pi]*100).toFixed(1)}%</b></div>
+        </div>
+      </div>
+    </div>`;}).join('');
+  picked.forEach(o=>{const pi=o.pi, base=pi*nSamp, idxPts=[], dhPts=[];
+    for(let j=0;j<nSamp;j++){idxPts.push([months[j],(MC.traceS[base+j]/S0-1)*100]); dhPts.push([months[j],MC.traceRet[base+j]]);}
+    const theo=poc[pi]*100;
+    const series=[
+      {pts:idxPts,color:'#4da3ff',w:1.7},
+      {pts:dhPts,color:'#2ec39b',w:1.9},
+      {pts:[[months[0],theo],[months[nSamp-1],theo]],color:C.warn,w:1.2}
+    ];
+    drawLines(host.querySelector(`canvas.cv-o[data-pi="${pi}"]`),series,{height:170,y0:0,xfmt:v=>v.toFixed(0)+'M',yfmt:v=>v.toFixed(0)+'%'});
+  });
+}
+
+/* =====================================================================
+   이론가(해석) 렌더링
+   ===================================================================== */
+function fmtKRW(x){const a=Math.abs(x);
+  if(a>=1e8)return (x/1e8).toFixed(2)+'억';
+  if(a>=1e4)return (x/1e4).toFixed(0)+'만';
+  return x.toFixed(0);}
+function pct(x,d){return (x*100).toFixed(d===undefined?2:d)+'%';}
+
+function renderAnalytic(P,strats){
+  const host=document.getElementById('analytic-body');
+  if(!strats.length){host.innerHTML='<div class="empty">전략을 선택하면 이론가가 표시됩니다.</div>';return;}
+  host.innerHTML='';
+  const S0=P.S0,T=P.T,units=P.notional/S0;
+  const gf=(x,d)=>(x==null||isNaN(x))?'—':x.toFixed(d);
+  strats.forEach(st=>{
+    const g=st.greeks?st.greeks(S0,T):fdGreeks(st,S0,T);
+    const card=document.createElement('div');card.className='scard';
+    // 표시용 프리미엄: 풋 매도는 수취(+), 매수 전략은 지불(부호 그대로)
+    const premShown=st.key==='put'? -st.premium0/S0 : st.premium0/S0;
+    const premAbs=Math.abs(st.premium0)*units;
+    const payCap=st.isBarrier
+      ? '만기 손익 P&L (프리미엄 포함 · 배리어 아래=낙아웃 리베이트)'
+      : '만기 손익 P&L (프리미엄 포함, 원금대비)';
+    card.innerHTML=`
+      <div class="sc-title"><span class="dot" style="background:${st.color}"></span>
+        <h3>${st.name}</h3><span class="badge">${st.info}</span></div>
+      <div class="stat-row">
+        <div class="stat"><div class="k">${st.key==='put'?'수취 프리미엄':'순프리미엄(지불)'}</div><div class="v ${premShown>=0?'pos':'neg'}">${pct(premShown)}</div></div>
+        <div class="stat"><div class="k">프리미엄 노셔널</div><div class="v">${fmtKRW(premAbs)}</div></div>
+        <div class="stat"><div class="k">복제대상 MTM / 단위</div><div class="v">${st.premium0.toFixed(3)}</div></div>
+      </div>
+      <div class="two-charts">
+        <div><canvas class="cv-pay"></canvas><div class="chart-cap">${payCap}</div></div>
+        <div><canvas class="cv-delta"></canvas><div class="chart-cap">복제 델타(현물 헤지비중) vs 기초자산</div></div>
+      </div>
+      <table class="greeks">
+        <tr><td>Delta Δ</td><td>${gf(g.delta,4)}</td><td>Gamma Γ</td><td>${gf(g.gamma,6)}</td></tr>
+        <tr><td>Vega ν (1%p)</td><td>${gf(g.vega,4)}</td><td>Theta Θ (1일)</td><td>${gf(g.theta,4)}</td></tr>
+        <tr><td>Rho ρ (1%p)</td><td>${gf(g.rho,4)}</td><td>Δ 노셔널(현물)</td><td>${fmtKRW(g.delta*units*S0)}</td></tr>
+      </table>`;
+    host.appendChild(card);
+    // payoff chart (배리어는 미터치/터치 2구조 구분)
+    const lo=S0*0.6,hi=S0*1.4;
+    const refLines=st.key==='spr'?[st.K1,st.K2]:st.key==='ko'?[st.K,st.H]:[st.K];
+    // 손익(P&L) = 만기페이오프 − 프리미엄(성장). 프리미엄 포함이라 숏풋은 +프리미엄 평탄.
+    let paySeries;
+    if(st.isBarrier){
+      // 단일 곡선: 만기 기초자산 기준. S≤H는 낙아웃 확정(리베이트), S>H는 생존.
+      const pts=[];
+      for(let i=0;i<=120;i++){const S=lo+(hi-lo)*i/120;
+        pts.push([S, S<=st.H? st.pnlUnit(S,false) : st.pnlUnit(S,true)]);}
+      paySeries=[{pts,color:st.color,fill:st.color+'22'}];
+    }else{
+      const pts=[];for(let i=0;i<=120;i++){const S=lo+(hi-lo)*i/120;pts.push([S,st.pnlUnit(S,true)]);}
+      paySeries=[{pts,color:st.color,fill:st.color+'22'}];
+    }
+    drawLines(card.querySelector('.cv-pay'),paySeries,
+      {height:140,y0:0,xfmt:v=>(v/S0*100).toFixed(0)+'%',yfmt:v=>(v/S0*100).toFixed(1)+'%',strike:refLines});
+    // delta profile
+    const dpts=[];for(let i=0;i<=120;i++){const S=lo+(hi-lo)*i/120;dpts.push([S,stratDelta(st,S,T)]);}
+    drawLines(card.querySelector('.cv-delta'),[{pts:dpts,color:C.accent}],
+      {height:140,y0:0,xfmt:v=>(v/S0*100).toFixed(0)+'%',yfmt:v=>v.toFixed(2),
+       strike:st.key==='spr'?[st.K1,st.K2]:st.key==='ko'?[st.K,st.H]:[st.K]});
+  });
+  // 합성 포트폴리오 (복수 선택 시)
+  if(strats.length>1) renderCombinedAnalytic(host,P,strats);
+}
+function fdGreeks(st,S,tau){
+  const h=Math.max(S*1e-4,1e-6),ht=1/365;
+  const p0=st.price(S,tau);
+  const delta=(st.price(S+h,tau)-st.price(S-h,tau))/(2*h);
+  const gamma=(st.price(S+h,tau)-2*p0+st.price(S-h,tau))/(h*h);
+  const theta=st.price(S,Math.max(tau-ht,1e-6))-p0;   // 1일 시간가치 변화
+  return {price:p0,delta,gamma,vega:null,theta,rho:null}; // 배리어 vega/rho는 대시 표기
+}
+function renderCombinedAnalytic(host,P,strats){
+  const S0=P.S0,T=P.T,lo=S0*0.6,hi=S0*1.4;
+  const barriers=strats.filter(s=>s.isBarrier);
+  const hasB=barriers.length>0;
+  const Hmax=hasB?Math.max(...barriers.map(s=>s.H)):0;   // 미터치 시나리오는 S≥최고배리어에서만 실현
+  const payCap=hasB
+    ? `합성 만기 손익 P&L <span class="legend-inline" style="display:inline-flex;gap:8px"><span><i style="background:#7c5cff"></i>배리어 미도달</span><span><i style="background:var(--down)"></i>배리어 도달</span></span>`
+    : '합성 만기 손익 P&L (프리미엄 포함, 원금대비)';
+  const card=document.createElement('div');card.className='scard';
+  card.innerHTML=`<div class="sc-title"><span class="dot" style="background:var(--accent2)"></span>
+    <h3>합성 포트폴리오 (선택 전략 합)</h3><span class="badge">${strats.map(s=>`${s.key} ${(s.weight*100).toFixed(0)}%`).join(' + ')}</span></div>
+    <div class="two-charts">
+      <div><canvas class="cv-cpay"></canvas><div class="chart-cap">${payCap}</div></div>
+      <div><canvas class="cv-cdelta"></canvas><div class="chart-cap">합성 복제 델타</div></div>
+    </div>${hasB?`<div class="note">배리어 옵션 포함 → 만기 손익은 <b>경로 의존</b>. <span style="color:#a99bff">미도달(생존)</span>=모든 배리어 유지, <span style="color:var(--down)">도달(낙아웃)</span>=배리어 터치되어 해당 옵션이 리베이트로 전환. 배리어(${(Hmax/S0*100).toFixed(0)}%) 아래 구간은 <b>도달만</b> 실현 가능하므로 미도달 곡선을 그리지 않음. <b>KO 행사가 위 구간에서는 KO풋이 OTM(=0)이라 도달·미도달 손익이 동일</b>해져 두 곡선이 겹칩니다(차이=KO 보호가치=max(K−S,0)×비율).</div>`:''}`;
+  host.appendChild(card);
+  const del=[];
+  for(let i=0;i<=120;i++){const S=lo+(hi-lo)*i/120;del.push([S,strats.reduce((a,s)=>a+stratDelta(s,S,T),0)]);}
+  let paySeries;
+  if(hasB){
+    const surv=[],touch=[];
+    for(let i=0;i<=120;i++){const S=lo+(hi-lo)*i/120;
+      touch.push([S,strats.reduce((a,s)=>a+s.pnlUnit(S,false),0)]);        // 배리어 도달(낙아웃→리베이트)
+      if(S>=Hmax) surv.push([S,strats.reduce((a,s)=>a+s.pnlUnit(S,true),0)]); // 배리어 미도달(생존)
+    }
+    paySeries=[{pts:touch,color:C.down,w:1.8},{pts:surv,color:'#7c5cff',fill:'#7c5cff22',w:1.8}];
+  }else{
+    const pay=[];for(let i=0;i<=120;i++){const S=lo+(hi-lo)*i/120;pay.push([S,strats.reduce((a,s)=>a+s.pnlUnit(S,true),0)]);}
+    paySeries=[{pts:pay,color:'#7c5cff',fill:'#7c5cff22'}];
+  }
+  const refK=hasB? barriers.flatMap(s=>[s.K,s.H]) : [];  // 배리어 전략의 행사가+배리어 기준선
+  drawLines(card.querySelector('.cv-cpay'),paySeries,
+    {height:140,y0:0,xfmt:v=>(v/S0*100).toFixed(0)+'%',yfmt:v=>(v/S0*100).toFixed(1)+'%',strike:refK});
+  drawLines(card.querySelector('.cv-cdelta'),[{pts:del,color:'#7c5cff'}],
+    {height:140,y0:0,xfmt:v=>(v/S0*100).toFixed(0)+'%'});
+}
+
+/* =====================================================================
+   몬테카를로 + Dynamic Hedging
+   ===================================================================== */
+function runMonteCarlo(P,strats,onProgress){
+  const {S0,T,sig,r,q}=P, mc=P.mc, units=P.notional/S0;
+  const nSteps=Math.max(2,Math.round(mc.days*T));
+  const dt=T/nSteps;
+  const drift=(mc.drift==='rn'? (r-q) : mc.mu) - 0.5*sig*sig;
+  const vol=sig*Math.sqrt(dt), disc=Math.exp(-r*T);
+  const rng=makeRng(mc.seed);
+  const nP=mc.paths;
+
+  const res=strats.map(st=>({st,
+    hedgePnl:new Float64Array(nP),   // 복제오차(만기): 헤지포트 - 실제페이오프 (단위당)
+    fundRet:new Float64Array(nP),    // 펀드 손익률(원금대비): 이론페이오프 − 거래비용
+    dhRet:new Float64Array(nP),      // 동적헤지 실현수익률(원금대비): 이론손익 + 복제오차 − 거래비용
+    payoffRet:new Float64Array(nP),  // 이론 페이오프 손익률(오차 무시)
+    mcValueAcc:0,                    // MC 옵션가치(할인 페이오프 평균)
+    tcAcc:0,                         // 평균 거래비용(원금대비)
+    koCount:0,                       // 배리어 낙아웃 발생 경로 수
+    sample:null                      // 샘플 경로 저장(첫 경로)
+  }));
+  const termS=new Float64Array(nP);
+  const touched=new Uint8Array(nP);   // 경로별 배리어 도달 여부(1=터치)
+  const pathMin=new Float32Array(nP), pathMax=new Float32Array(nP);  // 경로 최저·최고 지수(설명용)
+  // 전 경로 경량 추적(아웃라이어 상세용): nSamp개 샘플로 기초지수·합성포트수익률 저장
+  const nSamp=Math.min(nSteps+1,41);
+  const sampleStep=new Int32Array(nSamp);
+  for(let j=0;j<nSamp;j++) sampleStep[j]=Math.round(j*nSteps/(nSamp-1));
+  const traceS=new Float32Array(nP*nSamp);      // 기초지수(S)
+  const traceRet=new Float32Array(nP*nSamp);    // 합성포트 실현수익률(%, 원금대비)
+  const sumPrem0=strats.reduce((a,s)=>a+s.premium0,0);   // 합성 초기 보유가치(순프리미엄)
+
+  // 헤지 상태 (전략별)
+  for(let p=0;p<nP;p++){
+    // 경로 초기화
+    let S=S0;
+    const hedge=strats.map((st,si)=>{
+      const d0=stratDelta(st,S0,T);
+      const v0=st.price(S0,T);
+      // 복제 포트폴리오: 가치 = v0, 현물 d0단위 보유, 나머지 현금
+      return {h:d0, cash:v0-d0*S0, alive:true, minS:S0, maxS:S0, tc:0, lastRebal:0,
+        trace: (p===0)? {S:[S0],delta:[d0],port:[v0]} : null};
+    });
+    let nextJ=1; traceS[p*nSamp]=S0; traceRet[p*nSamp]=0;   // 샘플 j=0 (시작)
+    let pmin=S0, pmax=S0;
+
+    for(let step=1;step<=nSteps;step++){
+      const z=rng();
+      S=S*Math.exp(drift*dt+vol*z);
+      if(S<pmin)pmin=S; if(S>pmax)pmax=S;
+      const tau=T-step*dt;
+      // (1) 배리어 낙아웃 판정 + 현금 carry(무위험성장+배당)
+      strats.forEach((st,si)=>{
+        const H=hedge[si];
+        H.minS=Math.min(H.minS,S); H.maxS=Math.max(H.maxS,S);
+        if(st.isBarrier && st.H!==undefined && H.alive && S<=st.H) H.alive=false;
+        H.cash*=Math.exp(r*dt); H.cash+=H.h*S*q*dt;
+      });
+      // (2) 리밸런싱: 목표 델타 산출 → 총 편입비(Σ델타) 상한 적용 → 거래
+      const knockedNow=strats.some((st,si)=>st.isBarrier && !hedge[si].alive && hedge[si].h!==0);
+      const rebal=(step%mc.freq===0)||(step===nSteps)||knockedNow;
+      if(rebal){
+        const raw=strats.map((st,si)=>{
+          if(st.isBarrier && !hedge[si].alive) return 0;         // 터치 시 KO 델타=0(기능정지)
+          return stratDelta(st,S,Math.max(tau,1e-8));
+        });
+        let tot=raw.reduce((a,b)=>a+b,0);
+        // 총 편입비(주식 보유비중)를 최대 mc.maxW로 제한 → 배리어 근처 델타 폭증 방지
+        const scale=(mc.maxW>0 && Math.abs(tot)>mc.maxW)? mc.maxW/Math.abs(tot) : 1;
+        strats.forEach((st,si)=>{
+          const H=hedge[si], tgt=raw[si]*scale, dtrade=tgt-H.h, cost=mc.tc*Math.abs(dtrade)*S;
+          H.cash-=dtrade*S+cost; H.h=tgt; H.tc+=cost;
+        });
+      }
+      // 경량 샘플 기록(전 경로): 기초지수 & 합성포트 실현수익률
+      if(nextJ<nSamp && step===sampleStep[nextJ]){
+        let cport=0; for(let si=0;si<strats.length;si++) cport+=hedge[si].h*S+hedge[si].cash;
+        traceS[p*nSamp+nextJ]=S;
+        traceRet[p*nSamp+nextJ]=(cport - sumPrem0*Math.exp(r*step*dt))/S0*100;
+        nextJ++;
+      }
+      if(p===0) strats.forEach((st,si)=>{const H=hedge[si];
+        if(H.trace){H.trace.S.push(S);H.trace.delta.push(H.h);H.trace.port.push(H.h*S+H.cash);}});
+    }
+    termS[p]=S; pathMin[p]=pmin; pathMax[p]=pmax;
+    strats.forEach((st,si)=>{
+      const H=hedge[si], R=res[si];
+      const port=H.h*S+H.cash;                        // 복제 포트폴리오 만기가치
+      const actual=st.payoff(S,H.alive);              // 실제 옵션 페이오프
+      R.hedgePnl[p]=(port+H.tc)-actual;               // 복제오차(거래비용 제외 = 순수 트래킹오차, 평균≈0)
+      R.mcValueAcc+=disc*actual;
+      R.tcAcc+=H.tc/S0;
+      if(st.isBarrier && !H.alive) R.koCount++;       // 낙아웃 발생 경로 카운트
+      // 펀드 손익률: 동적헤지 실현손익 기준.
+      // 프리미엄(초기현금흐름) 성장 + 복제포트 실현 - 이론기대 페이오프의 관계로 표현하기보다
+      // "펀드가 옵션 페이오프를 복제 보유"했다고 보고: 실현손익 = port - v0*e^{rT} (헤지로 v0에서 시작)
+      // 이를 원금대비율로: 단위당 (port - v0*e^{rT})/S0  +  기대프리미엄수익
+      // 직관적 지표로 pnlUnit(실제 페이오프 기반) 사용하되, 거래비용을 차감:
+      R.fundRet[p]=(st.pnlUnit(S,H.alive)-H.tc)/S0;
+      R.dhRet[p]=R.fundRet[p]+R.hedgePnl[p]/S0;       // 동적헤지 실현 = 이론손익 − 거래비용 + 복제오차(경로의존)
+      R.payoffRet[p]=st.pnlUnit(S,H.alive)/S0;
+      if(p===0) R.sample=H.trace;
+    });
+    touched[p]=strats.some((st,si)=>st.isBarrier && !hedge[si].alive)?1:0;  // 배리어 도달 경로 표시
+    if(onProgress && (p&1023)===0) onProgress(p/nP);
+  }
+  res.forEach(R=>{R.mcValue=R.mcValueAcc/nP; R.tcMean=R.tcAcc/nP; R.koRate=R.koCount/nP;});
+  return {res,termS,touched,pathMin,pathMax,nSteps,dt,traceS,traceRet,nSamp,sampleStep,sumPrem0};
+}
+
+function stats(arr){
+  const n=arr.length; let s=0,s2=0,mn=Infinity,mx=-Infinity;
+  for(let i=0;i<n;i++){const v=arr[i];s+=v;s2+=v*v;if(v<mn)mn=v;if(v>mx)mx=v;}
+  const m=s/n, sd=Math.sqrt(Math.max(0,s2/n-m*m));
+  const sorted=Float64Array.from(arr).sort();
+  const q=p=>sorted[Math.min(n-1,Math.floor(p*n))];
+  return {mean:m,sd,min:mn,max:mx,med:q(0.5),p5:q(0.05),p95:q(0.95),sorted};
+}
+
+function renderMC(P,strats,MC){
+  const host=document.getElementById('mc-body');
+  host.innerHTML='';
+  const S0=P.S0,T=P.T;
+  MC.res.forEach((R,si)=>{
+    const st=R.st;
+    const sHedge=stats(R.hedgePnl), sFund=stats(R.fundRet);
+    const v0=st.premium0;                            // 단위당 복제대상가치
+    const mcErr=(R.mcValue - Math.abs(v0)); // 참고용
+    // 목표달성/승률
+    let winRate, targetRate=null;
+    winRate = R.fundRet.reduce((a,v)=>a+(v>0?1:0),0)/R.fundRet.length;
+    let extra='';
+    if(st.key==='put'){
+      // 프리미엄 확보 = 만기 세전 페이오프 수익률이 수취 프리미엄에 도달(풋 사실상 OTM 만기)
+      const tgt=Math.abs(st.premium0)/S0;   // 해당 행사가의 수취 프리미엄(원금대비)
+      targetRate=R.payoffRet.reduce((a,v)=>a+(v>=tgt*0.999?1:0),0)/R.payoffRet.length;
+      extra=`<div class="stat"><div class="k">프리미엄(${pct(tgt)}) 확보확률(세전)</div><div class="v pos">${pct(targetRate)}</div></div>`;
+    }
+    let koExtra='';
+    if(st.isBarrier) koExtra=`<div class="stat"><div class="k">낙아웃 비율</div><div class="v neg">${pct(R.koRate)}</div></div>`;
+    const card=document.createElement('div');card.className='scard';
+    card.innerHTML=`
+      <div class="sc-title"><span class="dot" style="background:${st.color}"></span>
+        <h3>${st.name}</h3><span class="badge">MC ${P.mc.paths.toLocaleString()} paths · ${MC.nSteps} steps</span></div>
+      <div class="stat-row">
+        <div class="stat"><div class="k">MC 복제가치</div><div class="v">${R.mcValue.toFixed(3)}</div></div>
+        <div class="stat"><div class="k">이론가(BS)</div><div class="v">${v0.toFixed(3)}</div></div>
+        <div class="stat"><div class="k">트래킹오차 μ/σ</div><div class="v">${sHedge.mean.toFixed(3)} / ${sHedge.sd.toFixed(3)}</div></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat"><div class="k">펀드손익 평균</div><div class="v ${sFund.mean>=0?'pos':'neg'}">${pct(sFund.mean)}</div></div>
+        <div class="stat"><div class="k">손익 σ</div><div class="v">${pct(sFund.sd)}</div></div>
+        <div class="stat"><div class="k">5% VaR</div><div class="v neg">${pct(sFund.p5)}</div></div>
+        <div class="stat"><div class="k">승률(&gt;0)</div><div class="v">${pct(winRate)}</div></div>
+        ${extra}${koExtra}
+        <div class="stat"><div class="k">평균 거래비용</div><div class="v neg">${pct(R.tcMean)}</div></div>
+      </div>
+      <div class="two-charts">
+        <div><canvas class="cv-fund"></canvas><div class="chart-cap">펀드 손익률 분포 (원금대비, 거래비용 차감)</div></div>
+        <div><canvas class="cv-herr"></canvas><div class="chart-cap">동적헤지 복제오차 분포 (0 근방=복제 정확)</div></div>
+      </div>
+      <div class="two-charts">
+        <div><canvas class="cv-path"></canvas><div class="chart-cap">샘플 경로: 기초자산 (점선=행사가/배리어)</div></div>
+        <div><canvas class="cv-pdelta"></canvas><div class="chart-cap">샘플 경로: 복제 델타(현물 헤지비중) 추이</div></div>
+      </div>`;
+    host.appendChild(card);
+    drawHist(card.querySelector('.cv-fund'),Array.from(R.fundRet),
+      {height:150,bins:45,zero:0,mean:sFund.mean,xfmt:v=>(v*100).toFixed(0)+'%',
+       colorFn:v=>v>=0?C.up:C.down});
+    drawHist(card.querySelector('.cv-herr'),Array.from(R.hedgePnl),
+      {height:150,bins:45,zero:0,mean:sHedge.mean,xfmt:v=>v.toFixed(1)});
+    if(R.sample){
+      const tr=R.sample, xs=tr.S.map((_,i)=>i);
+      const refs=st.key==='spr'?[st.K1,st.K2]:st.key==='ko'?[st.K,st.H]:[st.K];
+      drawLines(card.querySelector('.cv-path'),
+        [{pts:xs.map(i=>[i,tr.S[i]]),color:st.color,w:1.6}],
+        {height:150,xfmt:v=>v.toFixed(0),yfmt:v=>v.toFixed(0),strike:refs});
+      drawLines(card.querySelector('.cv-pdelta'),
+        [{pts:xs.map(i=>[i,tr.delta[i]]),color:C.accent,w:1.6}],
+        {height:150,y0:0,xfmt:v=>v.toFixed(0),yfmt:v=>v.toFixed(2)});
+    }
+  });
+
+  // 합성 포트폴리오 손익
+  if(MC.res.length>1){
+    const n=MC.res[0].fundRet.length, comb=new Float64Array(n);
+    for(let i=0;i<n;i++) comb[i]=MC.res.reduce((a,R)=>a+R.fundRet[i],0);
+    const sc=stats(comb);
+    const card=document.createElement('div');card.className='scard';
+    card.innerHTML=`<div class="sc-title"><span class="dot" style="background:var(--accent2)"></span>
+      <h3>합성 포트폴리오 손익</h3><span class="badge">선택 전략 합산</span></div>
+      <div class="stat-row">
+        <div class="stat"><div class="k">평균</div><div class="v ${sc.mean>=0?'pos':'neg'}">${pct(sc.mean)}</div></div>
+        <div class="stat"><div class="k">σ</div><div class="v">${pct(sc.sd)}</div></div>
+        <div class="stat"><div class="k">5% VaR</div><div class="v neg">${pct(sc.p5)}</div></div>
+        <div class="stat"><div class="k">95%</div><div class="v pos">${pct(sc.p95)}</div></div>
+      </div>
+      <canvas class="cv-comb"></canvas><div class="chart-cap">합성 손익률 분포 (원금대비)</div>`;
+    host.appendChild(card);
+    drawHist(card.querySelector('.cv-comb'),Array.from(comb),
+      {height:160,bins:50,zero:0,mean:sc.mean,xfmt:v=>(v*100).toFixed(0)+'%',colorFn:v=>v>=0?C.up:C.down});
+  }
+}
+
+/* =====================================================================
+   구동
+   ===================================================================== */
+function refreshAnalytic(){
+  const P=readParams(); const w=validate(P);
+  const wb=document.getElementById('warnbox');
+  if(w.length){wb.style.display='block';wb.innerHTML='⚠ '+w.join('<br>⚠ ');}
+  else wb.style.display='none';
+  syncStrategyUI();
+  if(w.some(x=>x.includes('만기')||x.includes('변동성')||x.includes('K')||x.includes('배리어')||x.includes('스프레드'))){return;}
+  const strats=buildStrategies(P);
+  renderAnalytic(P,strats);
+}
+function syncStrategyUI(){
+  document.getElementById('drift-fld').style.display=document.getElementById('mc-drift').value==='custom'?'':'none';
+  [['on-put','card-put'],['on-ko','card-ko'],['on-spr','card-spr']].forEach(([c,card])=>{
+    document.getElementById(card).classList.toggle('off',!document.getElementById(c).checked);
+    document.getElementById(card).querySelector('.strat-body').classList.toggle('hide',!document.getElementById(c).checked);
+  });
+}
+function runAll(){
+  const P=readParams(); const w=validate(P);
+  const wb=document.getElementById('warnbox');
+  if(w.length){wb.style.display='block';wb.innerHTML='⚠ '+w.join('<br>⚠ ');
+    if(w.some(x=>x.includes('만기')||x.includes('변동성')||x.includes('낮')||x.includes('K₁')||x.includes('하나')))return;}
+  const strats=buildStrategies(P);
+  renderAnalytic(P,strats);
+  const st=document.getElementById('status');
+  st.innerHTML='몬테카를로 실행 중… <b>0%</b>';
+  document.getElementById('mc-body').innerHTML='<div class="empty">시뮬레이션 계산 중…</div>';
+  setTimeout(()=>{
+    const t0=performance.now();
+    const MC=runMonteCarlo(P,strats,null);
+    renderMC(P,strats,MC);
+    renderScatter(P,strats,MC);
+    renderOutliers(P,strats,MC);
+    const dt=((performance.now()-t0)/1000).toFixed(1);
+    st.innerHTML=`완료 · <b>${P.mc.paths.toLocaleString()}</b> paths × <b>${MC.nSteps}</b> steps · ${dt}s · 이론가와 MC 옵션가치가 근접할수록 복제 정합.`;
+  },30);
+}
+
+const DEFAULTS={S0:100,Tm:12,vol:50,rate:3.0,div:2.0,notional:1000000000,
+  'put-strike':100,'put-weight':100,'ko-strike':100,'ko-barrier':60,'ko-rebate':0,'ko-weight':100,'spr-k1':110,'spr-k2':140,'spr-weight':100,
+  'mc-paths':5000,'mc-days':252,'mc-tc':15,'mc-maxw':180,'mc-mu':5,'mc-seed':20260513};
+function resetDefaults(){
+  Object.entries(DEFAULTS).forEach(([k,v])=>{const e=document.getElementById(k);if(e)e.value=v;});
+  document.getElementById('spr-type').value='c';
+  document.getElementById('mc-freq').value='1';document.getElementById('mc-drift').value='rn';
+  document.getElementById('on-put').checked=true;document.getElementById('on-ko').checked=true;document.getElementById('on-spr').checked=true;
+  refreshAnalytic();
+}
+
+// 이벤트 바인딩
+['S0','Tm','vol','rate','div','notional','put-strike','put-weight','ko-strike','ko-barrier','ko-rebate','ko-weight','spr-k1','spr-k2','spr-weight']
+  .forEach(id=>document.getElementById(id).addEventListener('input',refreshAnalytic));
+['spr-type','mc-drift'].forEach(id=>document.getElementById(id).addEventListener('change',refreshAnalytic));
+['on-put','on-ko','on-spr'].forEach(id=>document.getElementById(id).addEventListener('change',refreshAnalytic));
+document.getElementById('btn-run').addEventListener('click',runAll);
+document.getElementById('btn-reset').addEventListener('click',resetDefaults);
+window.addEventListener('resize',()=>{clearTimeout(window.__rz);window.__rz=setTimeout(refreshAnalytic,200);});
+
+// 브라우저 자동완성/폼복원 방지 (새로고침 시 기본값 유지)
+document.querySelectorAll('input,select').forEach(e=>e.setAttribute('autocomplete','off'));
+
+// 초기 렌더
+refreshAnalytic();
+</script>
