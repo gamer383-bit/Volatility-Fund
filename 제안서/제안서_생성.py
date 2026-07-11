@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """변동성 매매 펀드 제안서 2종(KOSPI200 / AI Top2) 생성 — 미래에셋 형식 초안"""
-import math
+import math, os
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
@@ -15,6 +15,7 @@ WHITE=RGBColor(0xFF,0xFF,0xFF); LORANGE=RGBColor(0xF0,0xB2,0x6B); RED=RGBColor(0
 GREEN=RGBColor(0x1F,0x9E,0x6E)
 FT="맑은 고딕"; FTB="맑은 고딕"
 SW,SH=Inches(10.8),Inches(7.5)
+IMG=os.path.join(os.path.dirname(os.path.abspath(__file__)),"img")   # 차트 PNG 폴더
 
 # ---------- 옵션 계산 ----------
 def N(x): return 0.5*(1+math.erf(x/math.sqrt(2)))
@@ -95,9 +96,17 @@ def make_table(slide,x,y,w,rows,colw,header_fill=NAVY,fs=11,hrow=True,rh=Inches(
                 p.alignment=(PP_ALIGN.LEFT if j==0 else PP_ALIGN.CENTER)
     return gt
 
+def pic(slide,path,x,y,w=None,h=None):
+    kw={}
+    if w is not None: kw['width']=w
+    if h is not None: kw['height']=h
+    return slide.shapes.add_picture(path,x,y,**kw)
+
 # =====================================================================
-def build(path, name, under, sig, is_index):
+def build(path, name, under, sig, is_index, volimg, tag):
     pput,psp,rows=scenario(sig)
+    valu_txt=("KOSPI 저평가 — 글로벌 대비 낮은 PER·PBR" if is_index
+              else "삼성전자·SK하이닉스 저평가 — 실적 대비 낮은 밸류에이션")
     prs=Presentation(); prs.slide_width=SW; prs.slide_height=SH
     blank=prs.slide_layouts[6]
     S=lambda: prs.slides.add_slide(blank)
@@ -109,7 +118,7 @@ def build(path, name, under, sig, is_index):
     txt(s,Inches(0.9),Inches(2.75),Inches(9.6),Inches(1.4),[
         [("변동성 매매 펀드",40,WHITE,True)],
         [(name,26,LORANGE,True)]],sp=1.05)
-    txt(s,Inches(0.9),Inches(5.2),Inches(9),Inches(0.4),[[("현물 델타헤지로 옵션 페이오프를 복제하는 변동성 매매 전략",15,RGBColor(0xC9,0xD6,0xE5),False)]])
+    txt(s,Inches(0.9),Inches(5.2),Inches(9),Inches(0.4),[[("높은 변동성 프리미엄을 수취하고 상승 방향에 참여하는 변동성 매매 전략",15,RGBColor(0xC9,0xD6,0xE5),False)]])
     txt(s,Inches(0.9),Inches(6.4),Inches(9),Inches(0.4),[[("2026.07  |  내부 검토용 초안",12,GRAY,False)]])
     txt(s,Inches(0.9),Inches(6.75),Inches(9.4),Inches(0.4),[[("미래에셋자산운용 컴플라이언스 검토 전 초안 — 대외 배포 금지",10,LORANGE,False)]])
 
@@ -117,11 +126,11 @@ def build(path, name, under, sig, is_index):
     s=S(); bg(s,WHITE); header(s,"01  PRODUCT","상품 개요")
     ov=[["구  분","내  용"],
         ["명  칭",f"미래에셋 변동성 매매 펀드 — {name} (가칭)"],
-        ["개  요","기초자산 현물 편입비를 동적으로 조절(델타헤지)하여 옵션 페이오프를 복제, 높은 변동성 프리미엄을 수취하고 상승 방향에 참여하는 전략"],
+        ["개  요","기초자산 편입비를 시장 상황에 따라 조절하여 높은 변동성 프리미엄을 수취하고 상승 방향에 참여하는 변동성 매매 전략"],
         ["기초자산",under],
         ["가정 변동성",f"연 {int(sig*100)}% (최근 실현변동성 대비 보수적 가정)"],
-        ["운용 전략","ATM/OTM 옵션 페이오프의 동적 델타헤지 복제 · 최대 편입비 180% 제한"],
-        ["유형 구분","안정형(ATM 풋 매도) / 적극형(풋 매도 + 콜 스프레드)"],
+        ["운용 전략","변동성 매도로 프리미엄 수취 + 상승 방향 참여 · 최대 편입비 180% 제한"],
+        ["유형 구분","안정변동성펀드(풋매도 단독) / 성장변동성펀드(풋매도 + 콜스프레드)"],
         ["상품 유형","국내 주식형 파생 (사모 · 일임)"],
         ["투자 등급","1등급 (매우 높은 위험) · 적극투자형"],
         ["만  기","1년 (예시) · 일별 리밸런싱"],
@@ -131,79 +140,103 @@ def build(path, name, under, sig, is_index):
         [("※ 원금 손실(0~100%)이 발생할 수 있으며 손실은 투자자에게 귀속됩니다. 예금자보호법 적용 대상이 아닙니다.",8.5,GRAY,False)]])
     footer(s,2)
 
-    # ---- 3) 수익 구조 ----
-    s=S(); bg(s,WHITE); header(s,"02  PAYOFF","수익 구조 — 안정형(ATM 풋 매도) 기준")
-    tb=[["만기 지수","펀드 수익률","시나리오"]]
-    for m,st,ac in rows:
-        sc=("급락" if m<=75 else "하락" if m<95 else "보합" if m<=110 else "상승" if m<=135 else "급등")
-        tb.append([f"{m}%", f"{st:+.1f}%", sc])
-    make_table(s,Inches(0.75),Inches(1.55),Inches(4.7),tb,[Inches(1.5),Inches(1.9),Inches(1.3)],fs=11,rh=Inches(0.4))
-    bullets(s,Inches(5.8),Inches(1.7),Inches(4.4),Inches(4),[
-        ("●",f"보합·상승 시 변동성 프리미엄 {pput*math.exp(0.03):.1f}%를 전액 확보 (상단 고정)",NAVY,True),
-        ("",f"기초자산이 행사가(100%) 이상에서 만기 → 최대 수익 {pput*math.exp(0.03):.1f}%",DGRAY,False),
-        ("●","하락 시 행사가 이하부터 손실이 누적 (풋 매도의 본질)",RED,True),
-        ("",f"예: 지수 -20% → 약 {rows[2][1]:+.1f}% (지수 80% 기준)",DGRAY,False),
-        ("●","변동성이 높을수록 수취 프리미엄(=최대수익)이 커짐",ORANGE,True),
-        ("●","현물 델타헤지로 복제 → 옵션 직접매도 대비 증거금·유동성 제약 없음",CYAN,True),
-    ],sz=12.5,gap=1.25)
-    txt(s,Inches(5.8),Inches(5.7),Inches(4.4),Inches(1),[
-        [("가정: T=1년, r=3%, q=2%, σ=",10,GRAY,False),(f"{int(sig*100)}%",10,ORANGE,True),
-         (". 이론 페이오프 기준이며 동적헤지 복제오차·거래비용은 별도.",10,GRAY,False)]])
+    # ---- 왜 이 펀드인가 ① 역대급 변동성 ----
+    s=S(); bg(s,WHITE); header(s,"02  WHY NOW","왜 지금 이 펀드인가 ① — 역대급 변동성")
+    txt(s,Inches(0.75),Inches(1.05),Inches(9.5),Inches(0.4),[[("최근 한국시장 변동성이 5년 내 최고 수준(99.7%ile). 변동성이 클수록 변동성 매매로 수취하는 프리미엄이 커집니다.",13,DGRAY,True)]])
+    pic(s,volimg,Inches(0.55),Inches(1.5),w=Inches(9.7))
+    rect(s,Inches(0.75),Inches(6.0),Inches(9.3),Inches(0.72),RGBColor(0xFD,0xF1,0xE6))
+    txt(s,Inches(0.95),Inches(6.0),Inches(8.9),Inches(0.72),[[("→ 지금은 변동성을 '피할' 때가 아니라 '수취'하기 가장 유리한 국면",13,ORANGE,True)]],anchor=MSO_ANCHOR.MIDDLE)
     footer(s,3)
 
-    # ---- 4) 왜 이 상품인가 ① 변동성 ----
-    s=S(); bg(s,WHITE); header(s,"03  WHY NOW","왜 지금 이 상품인가 ① — 역대급 변동성")
-    txt(s,Inches(0.75),Inches(1.32),Inches(9.4),Inches(0.4),[[("한국시장 변동성이 최근 5년 중 최고 수준(99%ile). 변동성이 클수록 매도 프리미엄이 커집니다.",13,DGRAY,True)]])
-    vt=[["기초자산","최근 60일","5년 평균","현재 백분위"],
-        ["코스피200","61.9%","18.6%","99.7%"],
-        ["삼성전자","76.9%","25.3%","99.7%"],
-        ["SK하이닉스","90.2%","37.3%","99.6%"],
-        ["AI Top2(5:5)","79.2%","28.4%","99.7%"]]
-    make_table(s,Inches(0.75),Inches(1.8),Inches(4.9),vt,[Inches(1.7),Inches(1.2),Inches(1.05),Inches(0.95)],fs=10.5,rh=Inches(0.38))
-    txt(s,Inches(0.75),Inches(3.75),Inches(4.9),Inches(0.35),[[("연율화 실현변동성 · 데이터: 최근 5년 주가(2021~2026)",8.5,GRAY,False)]])
-    # 레버리지 ETF 되먹임 박스
-    rect(s,Inches(5.85),Inches(1.8),Inches(4.2),Inches(2.3),LIGHT)
-    txt(s,Inches(6.05),Inches(1.9),Inches(3.85),Inches(2.15),[
-        [("변동성을 키운 구조적 원인: 단일종목 레버리지 ETF",12.5,NAVY,True)],
-        [("삼성전자·SK하이닉스 단일종목 레버리지 ETF 급증 ",10.5,DGRAY,False),("(합산 AUM 13.1조원)",10.5,ORANGE,True)],
-        [("두 종목이 KOSPI200의 ",10.5,DGRAY,False),("51.5%",10.5,ORANGE,True),(" (연초 38.7%→5월)",10.5,DGRAY,False)],
-        [("2배 상품이 오른 날 더 사고 내린 날 더 파는 ",10.5,DGRAY,False),("종가 순응매매(+10%일 2.6조)",10.5,NAVY,True)],
-        [("→ 변동성이 변동성을 부르는 되먹임",11,ORANGE,True)]],sp=1.2)
-    # 하단: 잠식 vs 수취 대비
-    rect(s,Inches(0.75),Inches(4.35),Inches(9.3),Inches(2.3),RGBColor(0xF2,0xF5,0xF8))
-    txt(s,Inches(0.95),Inches(4.5),Inches(8.9),Inches(0.4),[[("레버리지 ETF가 '잃는' 변동성을, 본 전략은 '수취'한다",14,NAVY,True)]])
-    bullets(s,Inches(0.95),Inches(5.0),Inches(8.9),Inches(1.6),[
-        ("▶",("레버리지 ETF: 고가매수·저가매도로 변동성 잠식(Volatility Decay) — 실제 KODEX SK하이닉스레버리지는 7월 5거래일 만에 −20.3%(기초 −3.2% 제자리)"),RED,False),
-        ("▶",("본 전략(변동성 매도 복제): 주가↓ 비중↑(저가매수)·주가↑ 비중↓(고가매도) — 확대된 변동성을 프리미엄으로 수취"),NAVY,True),
-        ("▶",("변동성 확대 = 옵션 프리미엄 확대 → 변동성 매도 전략의 기대수익 극대화 구간"),DGRAY,False),
-    ],sz=11.5,gap=1.25)
-    footer(s,4)
-
-    # ---- 5) 왜 ② 하방 제한 ----
-    s=S(); bg(s,WHITE); header(s,"04  WHY NOW","왜 지금 이 상품인가 ② — 제한적인 하방 위험")
-    txt(s,Inches(0.75),Inches(1.45),Inches(9.4),Inches(0.5),[[("삼성전자·SK하이닉스의 실적 개선과 AI 투자 사이클이 급격한 하락을 제한합니다.",14,DGRAY,True)]])
-    cards=[("실적(영업이익) 개선","HBM·메모리 업사이클과 가격 반등으로 반도체 대형주 영업이익이 구조적으로 개선. 이익 기반이 밸류에이션 하단을 지지."),
-           ("AI 투자 슈퍼사이클","글로벌 AI 데이터센터·가속기 수요로 국내 메모리 2사가 핵심 수혜. 설비·R&D 투자 확대가 중장기 성장 동력."),
-           ("수급·방향성","단일종목 레버리지 ETF 13.1조 유입 + 오른 날 더 사는 종가 순응매매로 상방 모멘텀 강화. 두 종목이 KOSPI200의 51.5%.")]
-    x=Inches(0.75)
+    # ---- 왜 ② 당분간 제한적 방향성 ----
+    s=S(); bg(s,WHITE); header(s,"03  WHY NOW","왜 지금 이 펀드인가 ② — 당분간 제한적 방향성")
+    txt(s,Inches(0.75),Inches(1.32),Inches(9.5),Inches(0.4),[[("상방엔 매물벽, 하방엔 저평가 — 한쪽으로 크게 쏠린 방향성이 나오기 어려운 국면입니다.",13,DGRAY,True)]])
+    txt(s,Inches(0.75),Inches(1.82),Inches(9.5),Inches(0.32),[[("① 상방을 누르는 수급 요인",13,NAVY,True)]])
+    cards=[("국민연금 매도 대기","목표비중 초과·국내주식 축소 기조로, 지수가 오를수록 대기 매도 물량이 상단에서 출회."),
+           ("외국인 리밸런싱","반도체 쏠림에 따른 지수 편입비 조정·차익 실현으로 상승 국면에서 매도 우위가 반복."),
+           ("개인 순응매도","단기 급등에 올라탄 과도한 매수 포지션이 반등 시마다 차익실현(상승 시 매도 대응)으로 전환.")]
     for i,(t,d) in enumerate(cards):
         cx=Inches(0.75+i*3.15)
-        rect(s,cx,Inches(2.2),Inches(2.95),Inches(3.0),LIGHT)
-        rect(s,cx,Inches(2.2),Inches(2.95),Inches(0.55),NAVY)
-        txt(s,cx+Inches(0.15),Inches(2.28),Inches(2.7),Inches(0.45),[[(t,12.5,WHITE,True)]],anchor=MSO_ANCHOR.MIDDLE)
-        txt(s,cx+Inches(0.18),Inches(2.95),Inches(2.6),Inches(2.1),[[(d,11.5,DGRAY,False)]],sp=1.25)
-    rect(s,Inches(0.75),Inches(5.55),Inches(9.3),Inches(1.05),RGBColor(0xFD,0xF1,0xE6))
-    txt(s,Inches(1.0),Inches(5.68),Inches(8.9),Inches(0.85),[
-        [("결론: ",13,ORANGE,True),("하락이 제한적이라면, ATM 풋 매도로 높은 변동성 프리미엄을 수취하는 것이 유리하다.",13,DGRAY,True)],
-        [("다만 단일종목·지수 고유의 하방 위험은 상존하므로 배리어·편입비 제한 등 리스크 관리를 병행한다.",11,GRAY,False)]],sp=1.2)
+        rect(s,cx,Inches(2.22),Inches(2.95),Inches(2.5),LIGHT)
+        rect(s,cx,Inches(2.22),Inches(2.95),Inches(0.5),NAVY)
+        txt(s,cx+Inches(0.15),Inches(2.27),Inches(2.7),Inches(0.4),[[(t,12.5,WHITE,True)]],anchor=MSO_ANCHOR.MIDDLE)
+        txt(s,cx+Inches(0.18),Inches(2.88),Inches(2.6),Inches(1.75),[[(d,11.5,DGRAY,False)]],sp=1.22)
+    rect(s,Inches(0.75),Inches(4.95),Inches(9.3),Inches(0.9),RGBColor(0xEC,0xF3,0xEA))
+    txt(s,Inches(0.95),Inches(5.02),Inches(8.9),Inches(0.78),[
+        [("② 하방을 받치는 밸류에이션: ",12.5,GREEN,True),(valu_txt,12.5,DGRAY,True)],
+        [("   ※ 세부 밸류에이션 수치는 별도 보고서 반영 예정",9.5,GRAY,False)]],sp=1.15)
+    rect(s,Inches(0.75),Inches(6.02),Inches(9.3),Inches(0.7),RGBColor(0xFD,0xF1,0xE6))
+    txt(s,Inches(0.95),Inches(6.02),Inches(8.9),Inches(0.7),[[("→ 상방 제한 + 하방 지지 = 좁은 등락 반복 → 방향성 베팅보다 변동성 매매가 유리",13,ORANGE,True)]],anchor=MSO_ANCHOR.MIDDLE)
+    footer(s,4)
+
+    # ---- 왜 ③ 레버리지가 키운 변동성 ----
+    s=S(); bg(s,WHITE); header(s,"04  WHY NOW","왜 지금 이 펀드인가 ③ — 레버리지가 키운 변동성")
+    txt(s,Inches(0.75),Inches(1.05),Inches(9.5),Inches(0.4),[[("단일종목 레버리지 ETF 급증이 삼성전자·SK하이닉스와 지수 변동성을 구조적으로 키우고 있습니다.",13,DGRAY,True)]])
+    pic(s,os.path.join(IMG,"lev_aum.png"),Inches(0.55),Inches(1.5),w=Inches(4.55))
+    pic(s,os.path.join(IMG,"idx_weight.png"),Inches(5.5),Inches(1.5),w=Inches(4.55))
+    rect(s,Inches(0.75),Inches(4.62),Inches(9.3),Inches(2.08),RGBColor(0xF2,0xF5,0xF8))
+    txt(s,Inches(0.95),Inches(4.72),Inches(8.9),Inches(0.35),[[("변동성이 변동성을 부르는 되먹임 — 두 종목이 KOSPI200의 ",13,NAVY,True),("51.5%",13,ORANGE,True),(" (연초 38.7%→5월)",12,DGRAY,False)]])
+    loop=["① 지수·종목 흔들림","② 지수의 절반인\n두 종목 급등락","③ 레버리지 종가\n순응매매(±10%→2.6조)","④ 지수 변동성\n재확대"]
+    for i,tt in enumerate(loop):
+        bx=Inches(0.95+i*2.30)
+        rect(s,bx,Inches(5.35),Inches(2.02),Inches(1.05),WHITE,line=NAVY)
+        txt(s,bx+Inches(0.06),Inches(5.35),Inches(1.9),Inches(1.05),[[(tt,10.5,NAVY,True)]],align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.MIDDLE,sp=1.05)
+        if i<3: txt(s,Inches(2.97+i*2.30),Inches(5.55),Inches(0.28),Inches(0.6),[[("→",16,ORANGE,True)]],align=PP_ALIGN.CENTER)
     footer(s,5)
 
-    # ---- 6) 전략 ----
-    s=S(); bg(s,WHITE); header(s,"05  STRATEGY","전략 — 변동성 매도 + 방향 투자")
+    # ---- 잠식 역이용: 레버리지가 잃는 변동성을 우리는 수익으로 ----
+    s=S(); bg(s,WHITE); header(s,"05  WHY NOW","레버리지의 '잠식'을 우리는 '수익'으로")
+    txt(s,Inches(0.75),Inches(1.05),Inches(9.5),Inches(0.4),[[("같은 변동성, 정반대 매매 — 레버리지 ETF가 '잃는' 그 변동성을 본 펀드는 '프리미엄'으로 수취합니다.",13,DGRAY,True)]])
+    pic(s,os.path.join(IMG,"decay_compare.png"),Inches(0.55),Inches(1.55),w=Inches(4.8))
+    LRED=RGBColor(0xFC,0xEB,0xE7)
+    # 레버리지 박스(잠식=손실)
+    rect(s,Inches(5.6),Inches(1.55),Inches(4.45),Inches(1.4),LRED)
+    rect(s,Inches(5.6),Inches(1.55),Inches(4.45),Inches(0.5),RED)
+    txt(s,Inches(5.75),Inches(1.58),Inches(4.2),Inches(0.45),[[("레버리지 ETF — 변동성에 '잠식'",13,WHITE,True)]],anchor=MSO_ANCHOR.MIDDLE)
+    txt(s,Inches(5.78),Inches(2.15),Inches(4.1),Inches(0.75),[
+        [("매일 고가매수·저가매도(추세 순응 리밸런싱)",11.5,DGRAY,True)],
+        [("→ 변동성이 클수록 자산이 녹는다 (기초 제자리인데 −20%)",11,DGRAY,False)]],sp=1.15)
+    txt(s,Inches(5.6),Inches(3.02),Inches(4.45),Inches(0.32),[[("▼ 정반대 매매",12,ORANGE,True)]],align=PP_ALIGN.CENTER)
+    # 본 펀드 박스(수취=수익)
+    rect(s,Inches(5.6),Inches(3.4),Inches(4.45),Inches(1.4),LIGHT)
+    rect(s,Inches(5.6),Inches(3.4),Inches(4.45),Inches(0.5),NAVY)
+    txt(s,Inches(5.75),Inches(3.43),Inches(4.2),Inches(0.45),[[("본 변동성 매매 펀드 — 변동성을 '수취'",13,WHITE,True)]],anchor=MSO_ANCHOR.MIDDLE)
+    txt(s,Inches(5.78),Inches(4.0),Inches(4.1),Inches(0.75),[
+        [("주가↓ 비중↑(저가매수)·주가↑ 비중↓(고가매도)",11.5,NAVY,True)],
+        [("→ 확대된 변동성을 프리미엄으로 전환(수익화)",11,DGRAY,False)]],sp=1.15)
+    rect(s,Inches(0.75),Inches(5.55),Inches(9.3),Inches(1.05),RGBColor(0xFD,0xF1,0xE6))
+    txt(s,Inches(1.0),Inches(5.55),Inches(8.9),Inches(1.05),[
+        [("핵심: 레버리지가 '잃는' 바로 그 변동성을, 본 펀드는 '수취'한다.",14,ORANGE,True)],
+        [("변동성이 클수록(=잠식이 클수록) 본 펀드의 기대 프리미엄은 오히려 커진다.",12,DGRAY,True)]],sp=1.25,anchor=MSO_ANCHOR.MIDDLE)
+    footer(s,6)
+
+    # ---- 왜 결론 ----
+    s=S(); bg(s,WHITE); header(s,"06  WHY NOW","결론 — 변동성↑ × 방향성↓ 국면의 최적해")
+    txt(s,Inches(0.75),Inches(1.12),Inches(9.5),Inches(0.4),[[("변동성은 높고 방향성은 제한적인 지금, 변동성 매매 펀드가 가장 잘 맞는 국면입니다.",13,DGRAY,True)]])
+    ox,oy,cw,ch=2.0,1.8,3.45,2.05
+    quad=[(0,0,ORANGE,"변동성 매매 펀드 ★","← 현재 국면",True),
+          (1,0,LIGHT,"레버리지·추세추종","방향 확신 필요",False),
+          (0,1,LIGHT,"현금성·채권","관망",False),
+          (1,1,LIGHT,"인덱스·방향투자","방향 베팅",False)]
+    for cx,cy,col,t1,t2,hl in quad:
+        rx=Inches(ox+cx*(cw+0.06)); ry=Inches(oy+cy*(ch+0.06))
+        rect(s,rx,ry,Inches(cw),Inches(ch),col)
+        tc=WHITE if hl else DGRAY
+        txt(s,rx+Inches(0.12),ry+Inches(0.12),Inches(cw-0.24),Inches(ch-0.24),[
+            [(t1,15 if hl else 13,tc,True)],[(t2,11,(WHITE if hl else GRAY),False)]],align=PP_ALIGN.CENTER,anchor=MSO_ANCHOR.MIDDLE,sp=1.25)
+    txt(s,Inches(0.78),Inches(oy),Inches(1.15),Inches(0.35),[[("변동성 ↑",11,NAVY,True)]],align=PP_ALIGN.CENTER)
+    txt(s,Inches(0.78),Inches(oy+ch+0.06+ch-0.35),Inches(1.15),Inches(0.35),[[("변동성 ↓",11,NAVY,True)]],align=PP_ALIGN.CENTER)
+    txt(s,Inches(ox),Inches(oy+2*ch+0.14),Inches(2*cw+0.06),Inches(0.32),[[("← 방향성 약함           방향성 강함 →",11,NAVY,True)]],align=PP_ALIGN.CENTER)
+    rect(s,Inches(0.75),Inches(6.35),Inches(9.3),Inches(0.66),RGBColor(0xFD,0xF1,0xE6))
+    txt(s,Inches(0.95),Inches(6.35),Inches(8.9),Inches(0.66),[[("→ 프리미엄은 '수취'하고 방향성 부재 리스크는 '회피' = 변동성 매매 펀드",13,ORANGE,True)]],anchor=MSO_ANCHOR.MIDDLE)
+    footer(s,7)
+
+    # ---- 전략 ----
+    s=S(); bg(s,WHITE); header(s,"07  STRATEGY","전략 — 변동성 매도 + 방향 투자")
     txt(s,Inches(0.75),Inches(1.45),Inches(9.4),Inches(0.4),[[("변동성이 높아 프리미엄은 크고(매도 유리), 방향은 위(상승 참여)라는 두 관점을 하나의 포트폴리오에 결합.",13,DGRAY,True)]])
-    boxes=[("① 변동성 매도","ATM 풋 매도 페이오프를 현물 델타헤지로 복제. 높은 변동성 프리미엄을 수취.",NAVY),
-           ("② 방향 투자","콜 스프레드 매수로 상승 구간 추가 수익. 실적·AI·레버리지 수급의 상방에 베팅.",ORANGE),
-           ("③ 리스크 관리","최대 편입비 180% 제한 · (옵션) 낙아웃 풋으로 급락 시 하방 완충.",CYAN)]
+    boxes=[("① 변동성 매도","시장 변동성을 매도하여 높은 변동성 프리미엄을 수취.",NAVY),
+           ("② 방향 투자","상승 구간 추가 수익. 실적·AI·레버리지 수급의 상방에 베팅.",ORANGE),
+           ("③ 리스크 관리","최대 편입비 180% 제한 · 급락 시 편입비 축소로 하방 완충.",CYAN)]
     for i,(t,d,c) in enumerate(boxes):
         by=Inches(2.15+i*1.35)
         rect(s,Inches(0.75),by,Inches(0.9),Inches(1.15),c)
@@ -211,29 +244,42 @@ def build(path, name, under, sig, is_index):
         rect(s,Inches(1.75),by,Inches(8.3),Inches(1.15),LIGHT)
         txt(s,Inches(1.95),by+Inches(0.12),Inches(7.9),Inches(0.95),[
             [(t[2:],14,c,True)],[(d,12.5,DGRAY,False)]],sp=1.15,anchor=MSO_ANCHOR.MIDDLE)
-    footer(s,6)
+    footer(s,8)
 
-    # ---- 7) 유형별 구조 ----
-    s=S(); bg(s,WHITE); header(s,"06  TYPES","투자 유형 — 적극형 / 안정형")
-    # 안정형 표
-    txt(s,Inches(0.75),Inches(1.45),Inches(4.6),Inches(0.35),[[("안정형 (변동성 안정 투자용)",14,NAVY,True)]])
-    txt(s,Inches(0.75),Inches(1.8),Inches(4.6),Inches(0.3),[[("ATM 풋 매도 단독 · 프리미엄 수취",11,GRAY,False)]])
-    st_t=[["만기지수","수익률"]]+[[f"{m}%",f"{st:+.1f}%"] for m,st,ac in rows]
-    make_table(s,Inches(0.75),Inches(2.15),Inches(4.4),st_t,[Inches(2.2),Inches(2.2)],fs=10.5,rh=Inches(0.32),header_fill=NAVY)
-    # 적극형 표
-    txt(s,Inches(5.6),Inches(1.45),Inches(4.6),Inches(0.35),[[("적극형 (변동성 적극 투자용)",14,ORANGE,True)]])
-    txt(s,Inches(5.6),Inches(1.8),Inches(4.6),Inches(0.3),[[("풋 매도 + 콜 스프레드 · 프리미엄+상방",11,GRAY,False)]])
-    ac_t=[["만기지수","수익률"]]+[[f"{m}%",f"{ac:+.1f}%"] for m,st,ac in rows]
-    make_table(s,Inches(5.6),Inches(2.15),Inches(4.4),ac_t,[Inches(2.2),Inches(2.2)],fs=10.5,rh=Inches(0.32),header_fill=ORANGE)
-    footer(s,7,"※ 이론 페이오프(원금대비 %) 예시. σ="+f"{int(sig*100)}%"+", T=1년 가정. 동적헤지 복제오차·거래비용 별도. 실제와 다를 수 있습니다.")
+    # ---- 운용 방식: 저가매수·고가매도 ----
+    s=S(); bg(s,WHITE); header(s,"08  HOW","어떻게 운용하는가 — 저가매수·고가매도")
+    txt(s,Inches(0.75),Inches(1.05),Inches(9.5),Inches(0.4),[[("시장이 빠지면 편입을 늘리고(저가매수), 오르면 줄인다(고가매도). 등락(변동성)을 매매로 수취합니다.",13,DGRAY,True)]])
+    pic(s,os.path.join(IMG,"oper_flow.png"),Inches(0.6),Inches(1.5),w=Inches(9.3))
+    rect(s,Inches(0.75),Inches(6.15),Inches(9.3),Inches(0.6),RGBColor(0xFD,0xF1,0xE6))
+    txt(s,Inches(0.95),Inches(6.15),Inches(8.9),Inches(0.6),[[("→ 레버리지 ETF의 '고가매수·저가매도'와 정반대 — 변동성을 잃지 않고 '수취'하는 구조",13,ORANGE,True)]],anchor=MSO_ANCHOR.MIDDLE)
+    footer(s,9)
 
-    # ---- 8) 리스크 ----
-    s=S(); bg(s,WHITE); header(s,"07  RISK","리스크 및 유의사항")
+    # ---- 수익 구조 ① 성장변동성펀드 (배리어 미터치/터치) ----
+    s=S(); bg(s,WHITE); header(s,"09  PAYOFF","수익 구조 — 성장변동성펀드 (풋매도 + 콜스프레드)")
+    txt(s,Inches(0.75),Inches(1.05),Inches(9.5),Inches(0.4),[[("운용 중 -40% 미도달 시 상승에 참여, -40% 도달 시 하방에 노출됩니다. 몬테카를로 동적헤지 시뮬레이션.",12.5,DGRAY,True)]])
+    pic(s,os.path.join(IMG,f"scat_{tag}_growth_nt.png"),Inches(0.35),Inches(1.55),w=Inches(4.95))
+    pic(s,os.path.join(IMG,f"scat_{tag}_growth_t.png"), Inches(5.45),Inches(1.55),w=Inches(4.95))
+    txt(s,Inches(0.75),Inches(6.55),Inches(9.4),Inches(0.4),[
+        [(f"σ {int(sig*100)}% 가정 · 점=시뮬 1회 · ",9,GRAY,False),("노란선=구간 평균",9,ORANGE,True),
+         (" · 데이터: 옵션복제 시뮬레이터 MC(거래비용·복제오차 포함)",9,GRAY,False)]])
+    footer(s,10)
+
+    # ---- 수익 구조 ② 안정변동성펀드 (풋매도 단독) ----
+    s=S(); bg(s,WHITE); header(s,"10  PAYOFF","수익 구조 — 안정변동성펀드 (풋매도 단독)")
+    txt(s,Inches(0.75),Inches(1.1),Inches(9.5),Inches(0.4),[[("보합·상승 구간에서 변동성 프리미엄을 수취(상단 고정), 급락 시 손실이 누적됩니다.",13,DGRAY,True)]])
+    pic(s,os.path.join(IMG,f"scat_{tag}_stable.png"),Inches(1.55),Inches(1.6),w=Inches(7.7))
+    txt(s,Inches(0.75),Inches(6.55),Inches(9.4),Inches(0.4),[
+        [(f"σ {int(sig*100)}% 가정 · 점=시뮬 1회 · ",9,GRAY,False),("노란선=구간 평균",9,ORANGE,True),
+         (" · 데이터: 옵션복제 시뮬레이터 MC(거래비용·복제오차 포함)",9,GRAY,False)]])
+    footer(s,11)
+
+    # ---- 리스크 ----
+    s=S(); bg(s,WHITE); header(s,"11  RISK","리스크 및 유의사항")
     bullets(s,Inches(0.75),Inches(1.6),Inches(9.3),Inches(5),[
-        ("■","하방 손실 위험 (최대 위험요소): 풋 매도 본질상 기초자산 급락 시 손실이 누적되며 원금의 상당 부분 손실이 가능합니다.",NAVY,True),
-        ("■","동적헤지 복제오차: 이산 리밸런싱·급변동·갭 하락 시 이론 페이오프와 실현손익이 크게 벌어질 수 있습니다(시뮬레이션상 이탈 사례 확인).",DGRAY,False),
-        ("■","편입비 상한(180%) 효과: 배리어 근처 델타 급등 구간에서 완전복제가 제한되어 추가 오차가 발생할 수 있습니다.",DGRAY,False),
-        ("■","낙아웃 리스크(적극형 옵션): 배리어 터치 시 하방보호가 소멸(델타=0)하여 이후 하락에 노출됩니다.",DGRAY,False),
+        ("■","하방 손실 위험 (최대 위험요소): 변동성 매도 본질상 기초자산 급락 시 손실이 누적되며 원금의 상당 부분 손실이 가능합니다.",NAVY,True),
+        ("■","운용오차: 이산 리밸런싱·급변동·갭 하락 시 이론 수익과 실현손익이 크게 벌어질 수 있습니다(시뮬레이션상 이탈 사례 확인).",DGRAY,False),
+        ("■","편입비 상한(180%) 효과: 급변동 구간에서 편입비 조절이 제한되어 추가 오차가 발생할 수 있습니다.",DGRAY,False),
+        ("■","급락 국면 위험: 급격한 하락 시 하방 완충이 제한되어 손실에 노출될 수 있습니다.",DGRAY,False),
         ("■",("단일종목 집중 위험(AI Top2)" if not is_index else "지수 변동 위험"),DGRAY,True) if not is_index else ("■","지수 변동·시장 위험: 시장 전반의 급락 국면에서 손실이 발생할 수 있습니다.",DGRAY,False),
         ("■","변동성 축소 위험: 시장 변동성이 가정보다 낮아지면 수취 프리미엄이 줄어 기대수익에 미달할 수 있습니다.",DGRAY,False),
     ],sz=12.5,gap=1.3)
@@ -243,9 +289,9 @@ def build(path, name, under, sig, is_index):
     txt(s,Inches(1.0),Inches(5.68),Inches(8.9),Inches(0.85),[
         [("본 상품은 1등급(매우 높은 위험) 상품으로 원금의 전부(0~100%) 손실이 발생할 수 있으며, 그 손실은 투자자에게 귀속됩니다.",11.5,RED,True)],
         [("투자 전 상품설명서·약관·계약권유문서를 반드시 확인하시기 바랍니다.",10.5,GRAY,False)]],sp=1.2)
-    footer(s,8)
+    footer(s,12)
 
-    # ---- 9) 운용부서/컴플 ----
+    # ---- 운용부서/컴플 ----
     s=S(); bg(s,NAVY)
     rect(s,Inches(0.9),Inches(1.4),Inches(0.14),Inches(0.55),ORANGE)
     txt(s,Inches(1.15),Inches(1.4),Inches(9),Inches(0.6),[[("운용부서 및 유의사항",22,WHITE,True)]])
@@ -258,12 +304,12 @@ def build(path, name, under, sig, is_index):
         [("· 본 자료는 컴플라이언스 검토 전 내부 검토용 초안이며 대외 배포를 금합니다.",10,LORANGE,False)],
         [("· 랩/펀드 계약은 예금자보호법에 따라 보호되지 않으며, 자산가격·환율·신용 변동에 따라 원금손실(0~100%)이 발생할 수 있습니다.",10,RGBColor(0xC9,0xD6,0xE5),False)],
         [("· 상기 시뮬레이션은 가정에 의거한 예시로 수익을 보장하지 않으며 실제 결과와 다를 수 있습니다.",10,RGBColor(0xC9,0xD6,0xE5),False)]],sp=1.3)
-    footer(s,9,"")
+    footer(s,13,"")
 
     prs.save(path)
     print("saved:",path)
 
-base="C:/Users/gamer38/Documents/Claude/Projects/변동성펀드/제안서/"
-build(base+"변동성매매펀드_KOSPI200_초안.pptx","KOSPI200","코스피200 지수",0.50,True)
-build(base+"변동성매매펀드_AITop2_초안.pptx","AI Top2 (삼성전자·SK하이닉스)","AI Top2 — 삼성전자·SK하이닉스 (동일가중)",0.60,False)
+base=os.path.join(os.path.dirname(os.path.abspath(__file__)),"")
+build(base+"변동성매매펀드_KOSPI200_초안.pptx","KOSPI200","코스피200 지수",0.50,True,  os.path.join(IMG,"vol_kospi200.png"),"kospi")
+build(base+"변동성매매펀드_AITop2_초안.pptx","AI Top2 (삼성전자·SK하이닉스)","AI Top2 — 삼성전자·SK하이닉스 (동일가중)",0.60,False, os.path.join(IMG,"vol_semi.png"),"top2")
 print("done")

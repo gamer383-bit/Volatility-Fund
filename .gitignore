@@ -6,6 +6,11 @@
 *_backup_*
 *_backup_*.html
 *_backup_*.pptx
+*_backup.pptx
+
+# 파이썬 캐시
+__pycache__/
+*.pyc
 
 # OS 부산물
 Thumbs.db

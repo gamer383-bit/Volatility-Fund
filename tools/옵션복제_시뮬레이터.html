@@ -78,6 +78,7 @@
 
   canvas{width:100%;display:block;background:transparent}
   .chart-cap{font-size:10px;color:var(--dim);margin:2px 0 8px}
+  .cv-sc{display:block;width:100%;max-width:640px}
   .two-charts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   @media(max-width:640px){.two-charts{grid-template-columns:1fr}}
 
@@ -485,26 +486,43 @@ function drawHist(cv,data,opt){
 
 /* 대형 산점도: X=만기 기초자산(%), Y=동적헤지 수익률(%). 점=경로. 구간평균선 오버레이 */
 function drawScatter(cv,xs,ys,opt){
-  opt=opt||{}; const {ctx,w,h}=setupCanvas(cv,opt.height||400);
-  const pl=58,pr=18,pt=16,pb=42, n=xs.length;
+  opt=opt||{}; const pl=58,pr=18,pt=16,pb=42, n=xs.length;
   const sx=Float64Array.from(xs).sort(), sy=Float64Array.from(ys).sort();
   const q=(a,p)=>a[Math.min(a.length-1,Math.max(0,Math.floor(p*a.length)))];
   let xmin,xmax;
   if(opt.xr){xmin=opt.xr[0];xmax=opt.xr[1];}                  // 고정 X범위(두 산점도 일치)
   else{xmin=Math.min(q(sx,0.005),60); xmax=Math.max(q(sx,0.995),140);}
-  // Y범위: X범위 내 점들 기준 백분위
-  const yin=[]; for(let i=0;i<ys.length;i++){if(xs[i]>=xmin&&xs[i]<=xmax)yin.push(ys[i]);}
-  const syin=(yin.length?Float64Array.from(yin):sy).sort();
-  let ymin=q(syin,0.01), ymax=q(syin,0.99);
-  const yp=(ymax-ymin)*0.08||1; ymin-=yp; ymax+=yp;
+  // Y범위: 고정(opt.yr) 또는 X범위 내 점들 기준 백분위
+  let ymin,ymax;
+  if(opt.yr){ymin=opt.yr[0];ymax=opt.yr[1];}
+  else{
+    const yin=[]; for(let i=0;i<ys.length;i++){if(xs[i]>=xmin&&xs[i]<=xmax)yin.push(ys[i]);}
+    const syin=(yin.length?Float64Array.from(yin):sy).sort();
+    ymin=q(syin,0.01); ymax=q(syin,0.99);
+    const yp=(ymax-ymin)*0.08||1; ymin-=yp; ymax+=yp;
+  }
   if(xmin===xmax){xmin-=1;xmax+=1;} if(ymin===ymax){ymin-=1;ymax+=1;}
+  // X·Y 눈금 간격 일치: 같은 px/단위 → 그리기 높이 = 폭 × (Y범위/X범위)
+  let H=opt.height||400;
+  if(opt.equalScale){ const wp=cv.clientWidth||cv.parentElement.clientWidth; const plotW=wp-pl-pr;
+    H=plotW*(ymax-ymin)/(xmax-xmin)+pt+pb; }
+  const {ctx,w,h}=setupCanvas(cv,H);
   const X=v=>pl+(v-xmin)/(xmax-xmin)*(w-pl-pr);
   const Y=v=>pt+(1-(v-ymin)/(ymax-ymin))*(h-pt-pb);
   ctx.clearRect(0,0,w,h);
   ctx.font='10px Consolas,monospace'; ctx.textBaseline='middle';
-  for(let i=0;i<=5;i++){const yv=ymin+(ymax-ymin)*i/5,yy=Y(yv);
-    ctx.strokeStyle=C.grid;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pl,yy);ctx.lineTo(w-pr,yy);ctx.stroke();
-    ctx.fillStyle=C.dim;ctx.textAlign='right';ctx.fillText(yv.toFixed(0)+'%',pl-6,yy);}
+  ctx.textAlign='right';
+  if(opt.ystep){ // Y축 눈금 고정 간격(예: 10 단위)
+    for(let yv=Math.ceil(ymin/opt.ystep)*opt.ystep; yv<=ymax+1e-9; yv+=opt.ystep){const yy=Y(yv);
+      ctx.strokeStyle=C.grid;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pl,yy);ctx.lineTo(w-pr,yy);ctx.stroke();
+      ctx.fillStyle=C.dim;ctx.fillText(yv.toFixed(0)+'%',pl-6,yy);}
+    if(Math.abs(ymax%opt.ystep)>1e-9){ // 최상단(이론 최대수익) 값 라벨 (10의 배수가 아닐 때)
+      ctx.textBaseline='top';ctx.fillStyle=C.muted;ctx.fillText(ymax.toFixed(0)+'%',pl-6,pt+1);ctx.textBaseline='middle';}
+  }else{
+    for(let i=0;i<=5;i++){const yv=ymin+(ymax-ymin)*i/5,yy=Y(yv);
+      ctx.strokeStyle=C.grid;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pl,yy);ctx.lineTo(w-pr,yy);ctx.stroke();
+      ctx.fillStyle=C.dim;ctx.fillText(yv.toFixed(0)+'%',pl-6,yy);}
+  }
   ctx.textAlign='center';ctx.textBaseline='top';
   const xstep=opt.xstep||((xmax-xmin)/6);
   for(let xv=Math.ceil(xmin/xstep)*xstep; xv<=xmax+1e-9; xv+=xstep){
@@ -540,6 +558,7 @@ function renderScatter(P,strats,MC){
   const host=document.getElementById('scatter-body');
   if(!MC||!strats.length){host.innerHTML='<div class="empty">전략을 선택하고 시뮬레이션을 실행하세요.</div>';return;}
   const n=MC.termS.length, S0=P.S0, hasB=strats.some(s=>s.isBarrier);
+  const yTop = 60;   // Y축 최대(고정)
   const build=(filter)=>{const X=[],Y=[];
     for(let i=0;i<n;i++){ if(filter && !filter(i)) continue;
       let s=0; for(let k=0;k<MC.res.length;k++) s+=MC.res[k].dhRet[i];
@@ -567,7 +586,7 @@ function renderScatter(P,strats,MC){
     </div>`;
   }).join('');
   groups.forEach((g,idx)=>{ if(!g.data.Y.length)return;
-    drawScatter(host.querySelector(`canvas[data-idx="${idx}"]`), g.data.X, g.data.Y, {height:340,color:g.color,xr:[50,160],xstep:10});});
+    drawScatter(host.querySelector(`canvas[data-idx="${idx}"]`), g.data.X, g.data.Y, {color:g.color,xr:[50,160],xstep:10,yr:[-20,yTop],ystep:10,equalScale:true});});
 }
 
 /* 이론가 대비 이탈 경로: 서로 다른 '유형'을 대표로 뽑아, 좌측 그래프(2/3)+우측 사유 설명(1/3) */
