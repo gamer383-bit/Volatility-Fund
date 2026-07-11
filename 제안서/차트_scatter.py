@@ -151,7 +151,7 @@ def build_fund(tag, sig, nP=7000):
     # 안정변동성펀드: put only
     Xs,Ys,_=run_mc(sig,False,False,nP=nP)
     # Y범위: 미터치 [-20,60], 터치 [-30,60] (지정)
-    ys_lo=np.floor(np.percentile(Ys,1)/10)*10; ysr=(min(ys_lo,-50),max(np.ceil(np.percentile(Ys,99)/10)*10,30))
+    ysr=(-30, max(np.ceil(np.percentile(Ys,99)/10)*10,30))  # 하단 -30% 고정
     plot_scatter(Xg[nt],Yg[nt],f'성장변동성펀드 — 운용 중 -40% 미도달 · σ{int(sig*100)}%',GREEN,(-20,60),f'scat_{tag}_growth_nt.png')
     plot_scatter(Xg[t], Yg[t], f'성장변동성펀드 — 운용 중 -40% 도달 · σ{int(sig*100)}%',   RED,  (-30,60),f'scat_{tag}_growth_t.png')
     plot_scatter(Xs,   Ys,    f'안정변동성펀드 — 풋매도 단독 · σ{int(sig*100)}%',          NAVY, ysr,   f'scat_{tag}_stable.png',figsize=(7.4,4.3))
