@@ -116,7 +116,9 @@ def run_mc(sig, use_ko, use_spr, nP=6000, seed=20260513,
 import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
-plt.rcParams['font.family']='AppleGothic'; plt.rcParams['axes.unicode_minus']=False
+import platform
+plt.rcParams['font.family']=('Malgun Gothic' if platform.system()=='Windows' else 'AppleGothic')
+plt.rcParams['axes.unicode_minus']=False
 NAVY='#043B72'; ORANGE='#F58220'; RED='#D02F00'; GRAY='#84888B'; GREEN='#1F9E6E'; CYAN='#00A9CE'
 IMG=os.path.join(os.path.dirname(os.path.abspath(__file__)),"img")
 
@@ -154,7 +156,7 @@ def build_fund(tag, sig, nP=7000):
     ysr=(-30, max(np.ceil(np.percentile(Ys,99)/10)*10,30))  # 하단 -30% 고정
     plot_scatter(Xg[nt],Yg[nt],f'성장변동성펀드 — 운용 중 -40% 미도달 · σ{int(sig*100)}%',GREEN,(-20,60),f'scat_{tag}_growth_nt.png')
     plot_scatter(Xg[t], Yg[t], f'성장변동성펀드 — 운용 중 -40% 도달 · σ{int(sig*100)}%',   RED,  (-30,60),f'scat_{tag}_growth_t.png')
-    plot_scatter(Xs,   Ys,    f'안정변동성펀드 — 풋매도 단독 · σ{int(sig*100)}%',          NAVY, ysr,   f'scat_{tag}_stable.png',figsize=(7.4,4.3))
+    plot_scatter(Xs,   Ys,    f'안정변동성펀드 — 안정 변동성 매매 · σ{int(sig*100)}%',       NAVY, ysr,   f'scat_{tag}_stable.png',figsize=(7.4,4.3))
     print(f"[{tag} σ{int(sig*100)}] 성장 터치 {t.mean()*100:.1f}% | 미터치평균 {Yg[nt].mean():+.1f}% 터치평균 {Yg[t].mean():+.1f}% | 안정평균 {Ys.mean():+.1f}% 수익확률 {(Ys>=0).mean()*100:.0f}%")
 
 if __name__=='__main__':
