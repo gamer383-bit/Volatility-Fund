@@ -144,7 +144,7 @@ def build(path, name, under, sig, is_index, volimg, tag):
 
     # ---- 왜 이 펀드인가 ① 역대급 변동성 ----
     s=S(); bg(s,WHITE); header(s,"02  WHY NOW","왜 지금 이 펀드인가 ① — 역대급 변동성")
-    txt(s,Inches(0.75),Inches(1.05),Inches(9.5),Inches(0.4),[[("최근 한국시장 변동성이 5년 내 최고 수준(99.7%ile). 변동성이 클수록 변동성 매매의 수익 기회가 커집니다.",13,DGRAY,True)]])
+    txt(s,Inches(0.75),Inches(1.05),Inches(9.5),Inches(0.4),[[("한국시장 변동성이 최근 5년 중 최고 수준입니다(2026-07-10 기준, 60영업일 연율화). 변동성이 클수록 변동성 매매의 수익 기회가 커집니다.",13,DGRAY,True)]])
     pic(s,volimg,Inches(0.55),Inches(1.5),w=Inches(9.7))
     rect(s,Inches(0.75),Inches(6.0),Inches(9.3),Inches(0.72),RGBColor(0xFD,0xF1,0xE6))
     txt(s,Inches(0.95),Inches(6.0),Inches(8.9),Inches(0.72),[[("→ 지금은 변동성을 '피할' 때가 아니라 '수확'하기 가장 유리한 국면",13,ORANGE,True)]],anchor=MSO_ANCHOR.MIDDLE)
