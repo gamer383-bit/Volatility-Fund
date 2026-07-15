@@ -173,12 +173,12 @@ def build(path, name, under, sig, is_index, volimg, tag):
 
     # ---- 왜 ③ 레버리지가 키운 변동성 ----
     s=S(); bg(s,WHITE); header(s,"04  WHY NOW","왜 지금 이 펀드인가 ③ — 레버리지가 키운 변동성")
-    txt(s,Inches(0.75),Inches(1.05),Inches(9.5),Inches(0.4),[[("단일종목 레버리지 ETF 급증이 삼성전자·SK하이닉스와 지수 변동성을 구조적으로 키우고 있습니다.",13,DGRAY,True)]])
+    txt(s,Inches(0.75),Inches(1.05),Inches(9.5),Inches(0.4),[[("국내·해외(홍콩 CSOP 등) 레버리지 ETF 약 40조원(6/30 기준)이 삼성전자·SK하이닉스와 지수 변동성을 구조적으로 키우고 있습니다.",13,DGRAY,True)]])
     pic(s,os.path.join(IMG,"lev_aum.png"),Inches(0.55),Inches(1.5),w=Inches(4.55))
     pic(s,os.path.join(IMG,"idx_weight.png"),Inches(5.5),Inches(1.5),w=Inches(4.55))
     rect(s,Inches(0.75),Inches(4.62),Inches(9.3),Inches(2.08),RGBColor(0xF2,0xF5,0xF8))
-    txt(s,Inches(0.95),Inches(4.72),Inches(8.9),Inches(0.35),[[("변동성이 변동성을 부르는 되먹임 — 두 종목이 KOSPI200의 ",13,NAVY,True),("51.5%",13,ORANGE,True),(" (연초 38.7%→5월)",12,DGRAY,False)]])
-    loop=["① 지수·종목 흔들림","② 지수의 절반인\n두 종목 급등락","③ 레버리지 종가\n순응매매(±10%→2.6조)","④ 지수 변동성\n재확대"]
+    txt(s,Inches(0.95),Inches(4.72),Inches(8.9),Inches(0.35),[[("변동성이 변동성을 부르는 되먹임 — 두 종목이 KOSPI200의 ",13,NAVY,True),("57.4%",13,ORANGE,True),(" (6/30 추정 · 연초 38.7% → 5/13 확정 51.5%)",12,DGRAY,False)]])
+    loop=["① 지수·종목 흔들림","② 지수의 절반인\n두 종목 급등락","③ 레버리지 종가\n순응매매(±10%→약 8조·글로벌)","④ 지수 변동성\n재확대"]
     for i,tt in enumerate(loop):
         bx=Inches(0.95+i*2.30)
         rect(s,bx,Inches(5.35),Inches(2.02),Inches(1.05),WHITE,line=NAVY)
