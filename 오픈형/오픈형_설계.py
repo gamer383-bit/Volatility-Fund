@@ -106,6 +106,50 @@ def chart_sensitivity(sens50,sens60):
     fig.tight_layout(rect=[0,0.03,1,1])
     fig.savefig(os.path.join(IMG,'open_sensitivity.png')); plt.close(fig)
 
+# ---------- ④ 실제 순매수: 목표 편입비 vs 자체 드리프트 ----------
+# 리셋(w=150%, NAV=1)에서 지수가 m으로 이동(중간 리밸런싱 없음 가정) 시:
+#   NAV' = 1 + 1.5R,  드리프트 편입비 w_d = 1.5(1+R)/NAV'   (R=m/100-1)
+#   실제 순매수 = (목표 w_t(m) - w_d) × NAV'  → NAV' 대비 %p 로 표기
+# w>1 영역에선 상승 시 NAV가 노출보다 빨리 늘어 편입비가 '자연 하락' → 목표와 같은 방향.
+def trade_analysis(sig,K2,tag,label):
+    ms=np.array([60.,65,70,75,80,85,90,95,100,105,110,115,120,125,130,135,140])
+    Rr=ms/100-1
+    NAV=1+1.5*Rr
+    wd=np.clip(1.5*(1+Rr)/NAV,0,None)          # 드리프트 편입비
+    wt1=w_model1(ms,k=K_STD); wt2=w_model2(ms,K2,sig)
+    tr1=(wt1-wd)*100; tr2=(wt2-wd)*100         # 실제 순매수 (%p of NAV')
+    # 레버리지 ETF(2x) 비교: NAVe=1+2R, wde=2(1+R)/NAVe, trade=(2-wde)
+    NAVe=1+2*Rr; wde=np.where(NAVe>0.05,2*(1+Rr)/NAVe,np.nan)
+    tre=(2-wde)*100
+    print(f"\n[{label}] 실제 순매수 테이블 (변동 후 NAV 대비 %p, 리셋 w=150%에서 지수 m으로 이동 시)")
+    print(f"{'지수':>5} | {'드리프트 편입비':>12} | {'상품1 목표':>9} {'순매수':>7} | {'상품2 목표':>9} {'순매수':>7} | {'레버리지ETF 순매수':>14}")
+    for i,m in enumerate(ms):
+        e=f"{tre[i]:+14.1f}" if np.isfinite(tre[i]) else f"{'(NAV소진)':>14}"
+        print(f"{m:5.0f} | {wd[i]*100:12.1f} | {wt1[i]*100:9.1f} {tr1[i]:+7.1f} | {wt2[i]*100:9.1f} {tr2[i]:+7.1f} | {e}")
+    # 차트
+    fig,ax=plt.subplots(figsize=(7.6,5.6),dpi=110)
+    S=np.linspace(62,140,157); Rr2=S/100-1; NAV2=1+1.5*Rr2
+    wd2=1.5*(1+Rr2)/NAV2
+    t1=(w_model1(S,k=K_STD)-wd2)*100; t2=(w_model2(S,K2,sig)-wd2)*100
+    NAVe2=1+2*Rr2; te=np.where(NAVe2>0.15,(2-2*(1+Rr2)/NAVe2)*100,np.nan)
+    ax.plot(S,te,color='#B03A2E',lw=2.0,ls='--',label='레버리지 ETF(2x) — 순응매매')
+    ax.plot(S,t1,color=NAVY,lw=2.6,label='상품1 룰베이스(k=1.25) — 실제 순매수')
+    ax.plot(S,t2,color=ORANGE,lw=2.6,label=f'상품2 옵션복제(σ{int(sig*100)}%) — 실제 순매수')
+    ax.axhline(0,color='#888',lw=1); ax.axvline(100,color='#9aa7b8',ls='--',lw=1)
+    ax.fill_between(S,0,np.minimum(t1,0),color='#dce7f2',alpha=0.5)
+    ax.text(120,8,'매수(+)',color=GRAY,fontsize=10); ax.text(120,-8,'매도(-)',color=GRAY,fontsize=10)
+    ax.set_xlim(62,140); ax.set_ylim(-45,45)
+    ax.set_xlabel('지수 (리셋일=100, 한 번에 이동 가정)',fontsize=11,color=NAVY)
+    ax.set_ylabel('실제 순매수 (변동 후 NAV 대비 %p)',fontsize=11,color=NAVY)
+    ax.set_title(f'{label} — 실제 순매수: 목표 편입비 - 자체 드리프트',fontsize=13,color=NAVY,fontweight='bold',loc='left')
+    ax.grid(alpha=0.25); ax.spines[['top','right']].set_visible(False)
+    ax.legend(fontsize=9.5,frameon=False,loc='upper right')
+    fig.text(0.99,0.01,'레버리지 영역(w>1)은 상승 시 편입비가 자연 하락 → 실제 매매는 목표 변화의 약 절반 · 일별 리밸런싱 시 소폭 분할 집행',
+             ha='right',color=GRAY,fontsize=8.2)
+    fig.tight_layout(rect=[0,0.03,1,1])
+    fig.savefig(os.path.join(IMG,f'open_trade_{tag}.png')); plt.close(fig)
+    return tr1,tr2
+
 # ---------- ③ 3개월 예상수익 곡선 (MC, 일별 룰 적용) ----------
 def mc_quarter(sig,K2,nP=6000,days=63,tc=0.0015,seed=20260715):
     dt=1/252; rng=np.random.default_rng(seed)
@@ -154,6 +198,8 @@ if __name__=='__main__':
     K60=chart_weights(0.60,'stock','삼성전자·하이닉스 (σ60%)')
     s50=sensitivity(0.50,K50,'σ50%'); s60=sensitivity(0.60,K60,'σ60%')
     chart_sensitivity(s50,s60)
+    trade_analysis(0.50,K50,'k200','KOSPI200 (σ50%)')
+    trade_analysis(0.60,K60,'stock','삼성전자·하이닉스 (σ60%)')
     print()
     chart_mc(0.50,K50,'k200','KOSPI200 (σ50%)')
     chart_mc(0.60,K60,'stock','삼성전자·하이닉스 (σ60%)')
