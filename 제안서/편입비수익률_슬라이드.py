@@ -15,7 +15,7 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.oxml.ns import qn
 
-R,Q,SIG=0.03,0.02,0.60
+R,Q,SIG=0.025,0.025,0.60   # 금리=배당=2.5% (사용자 지정)
 KPUT,KKO,H,K1,K2=100.,100.,60.,110.,150.
 CAP_G, CAP_S = 1.8, 1.0     # 성장형 180% / 안정형 100%
 NAVY=RGBColor(0x04,0x3B,0x72); ORANGE=RGBColor(0xF5,0x82,0x20); GRAY=RGBColor(0x84,0x88,0x8B)
