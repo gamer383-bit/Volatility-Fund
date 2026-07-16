@@ -39,6 +39,17 @@ ax1.annotate(f'{cumU[-1]:+.1f}%',xy=(dt.iloc[-1],cumU[-1]),xytext=(6,0),textcoor
 ylo=min(cumL.min(),cumU.min())
 ax1.text(dt.iloc[3],ylo+1,f'단순 2배({simple2[-1]:+.0f}%)에 못 미침 = 변동성 잠식 {cumL[-1]-simple2[-1]:+.1f}%p',
          color=RED,fontsize=11.5,fontweight='bold')
+# 기초가 상장가 부근으로 복귀한 가장 최근 시점 표시 (|기초|≤4%) — 순수 변동성 잠식 사례
+flat=[i for i in range(1,len(cumU)) if abs(cumU[i])<=4.0]
+if flat:
+    fi=flat[-1]
+    ax1.plot([dt.iloc[fi]],[cumU[fi]],'o',color=NAVY,ms=8,zorder=5)
+    ax1.plot([dt.iloc[fi]],[cumL[fi]],'o',color=RED,ms=8,zorder=5)
+    ax1.annotate(f"{pd.Timestamp(dt.iloc[fi]).strftime('%m/%d')} 기초 {cumU[fi]:+.1f}% '제자리'\n레버리지 {cumL[fi]:+.1f}% = 변동성 잠식",
+                 xy=(dt.iloc[fi],cumL[fi]),xytext=(-105,95),textcoords='offset points',
+                 color=RED,fontsize=10.5,fontweight='bold',
+                 arrowprops=dict(arrowstyle='->',color=RED,lw=1.2))
+    print(f"제자리 복귀 표시: {dt.iloc[fi]} 기초 {cumU[fi]:+.1f}% / 레버리지 {cumL[fi]:+.1f}%")
 ax1.set_ylabel('수익률 (%)',color=NAVY,fontsize=12)
 ax1.set_title('KODEX 하이닉스레버리지 — 상장 후 실제 성과와 리밸런싱',color=NAVY,fontsize=14.5,fontweight='bold',loc='left',pad=10)
 ax1.legend(fontsize=10.5,frameon=False,loc='upper left')
