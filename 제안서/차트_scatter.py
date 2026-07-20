@@ -147,19 +147,19 @@ def plot_scatter(X,Y,title,ptcolor,yr,fname,figsize=(5.3,4.3)):
     ax.legend(fontsize=9,frameon=False,loc='upper left')
     fig.tight_layout(); fig.savefig(os.path.join(IMG,fname),bbox_inches='tight'); plt.close(fig)
 
-def build_fund(tag, sig, nP=7000, w=1.0):
+def build_fund(tag, sig, nP=7000, w_growth=1.0, w_stable=1.0):
     # 성장변동성펀드: put+KO+spread → 배리어 미터치/터치
-    Xg,Yg,t=run_mc(sig,True,True,nP=nP,w=w); nt=~t
+    Xg,Yg,t=run_mc(sig,True,True,nP=nP,w=w_growth); nt=~t
     # 안정변동성펀드: put only
-    Xs,Ys,_=run_mc(sig,False,False,nP=nP,w=w)
+    Xs,Ys,_=run_mc(sig,False,False,nP=nP,w=w_stable)
     # Y범위: 미터치 [-20,60], 터치 [-30,60] (지정)
     ysr=(-30, max(np.ceil(np.percentile(Ys,99)/10)*10,30))  # 하단 -30% 고정
-    plot_scatter(Xg[nt],Yg[nt],'성장변동성펀드 — 운용 중 -40% 미도달'+(f' · 복제비율 {int(w*100)}%' if w!=1.0 else ''),GREEN,(-20,60),f'scat_{tag}_growth_nt.png')
-    plot_scatter(Xg[t], Yg[t], '성장변동성펀드 — 운용 중 -40% 도달'+(f' · 복제비율 {int(w*100)}%' if w!=1.0 else ''),   RED,  (-30,60),f'scat_{tag}_growth_t.png')
-    plot_scatter(Xs,   Ys,    '안정변동성펀드 — 안정 변동성 매매'+(f' · 복제비율 {int(w*100)}%' if w!=1.0 else ''),       NAVY, ysr,   f'scat_{tag}_stable.png',figsize=(7.4,4.3))
+    plot_scatter(Xg[nt],Yg[nt],'성장변동성펀드 — 운용 중 -40% 미도달'+(f' · 복제비율 {int(w_growth*100)}%' if w_growth!=1.0 else ''),GREEN,(-20,60),f'scat_{tag}_growth_nt.png')
+    plot_scatter(Xg[t], Yg[t], '성장변동성펀드 — 운용 중 -40% 도달'+(f' · 복제비율 {int(w_growth*100)}%' if w_growth!=1.0 else ''),   RED,  (-30,60),f'scat_{tag}_growth_t.png')
+    plot_scatter(Xs,   Ys,    '안정변동성펀드 — 안정 변동성 매매'+(f' · 복제비율 {int(w_stable*100)}%' if w_stable!=1.0 else ''),       NAVY, ysr,   f'scat_{tag}_stable.png',figsize=(7.4,4.3))
     print(f"[{tag} σ{int(sig*100)}] 성장 터치 {t.mean()*100:.1f}% | 미터치평균 {Yg[nt].mean():+.1f}% 터치평균 {Yg[t].mean():+.1f}% | 안정평균 {Ys.mean():+.1f}% 수익확률 {(Ys>=0).mean()*100:.0f}%")
 
 if __name__=='__main__':
     build_fund('kospi',0.50)
-    build_fund('top2', 0.60, w=1.10)   # Top2 덱: 복제비율 110%
+    build_fund('top2', 0.60, w_stable=1.10)   # Top2 덱: 안정형만 복제비율 110% (성장형 100%)
     print("scatter charts done")
