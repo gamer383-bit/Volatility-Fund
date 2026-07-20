@@ -38,7 +38,7 @@ def ko_delta(S,K,H,tau,sig,r,q):
     return (down_out_put(S+h,K,H,tau,sig,r,q)-down_out_put(S-h,K,H,tau,sig,r,q))/(2*h)
 
 # ---------- MC 동적헤지 ----------
-def run_mc(sig, use_ko, use_spr, nP=6000, seed=20260513,
+def run_mc(sig, use_ko, use_spr, nP=6000, seed=20260513, w=1.0,
            S0=100.,T=1.,r=0.03,q=0.02,days=252,tc=0.0015,maxW=1.8,
            Kput=100.,Kko=100.,H=60.,K1=110.,K2=150.):
     nSteps=int(round(days*T)); dt=T/nSteps
@@ -50,7 +50,7 @@ def run_mc(sig, use_ko, use_spr, nP=6000, seed=20260513,
     strat.append('put')
     if use_ko: strat.append('ko')
     if use_spr: strat.append('spr')
-    w=1.0
+    # w = 복제비율 (기본 100%, 인자로 지정)
     def dlt(kind,S,tau):
         if kind=='put': return -bs_delta('p',S,Kput,tau,sig,r,q)*w
         if kind=='spr': return (bs_delta('c',S,K1,tau,sig,r,q)-bs_delta('c',S,K2,tau,sig,r,q))*w
@@ -59,10 +59,10 @@ def run_mc(sig, use_ko, use_spr, nP=6000, seed=20260513,
         if kind=='put': return -bs_price('p',S0,Kput,T,sig,r,q)*w
         if kind=='spr': return (bs_price('c',S0,K1,T,sig,r,q)-bs_price('c',S0,K2,T,sig,r,q))*w
         if kind=='ko':  return float(down_out_put(np.array([S0]),Kko,H,T,sig,r,q)[0])*w
-    def prem0(kind):  # pnlUnit 기준 초기 프리미엄(양수 표기 요소)
-        if kind=='put': return bs_price('p',S0,Kput,T,sig,r,q)*w
-        if kind=='spr': return (bs_price('c',S0,K1,T,sig,r,q)-bs_price('c',S0,K2,T,sig,r,q))*w
-        if kind=='ko':  return float(down_out_put(np.array([S0]),Kko,H,T,sig,r,q)[0])*w
+    def prem0(kind):  # pnlUnit 기준 초기 프리미엄 (단위당 — 복제비율 w는 pnlUnit에서 1회만 적용)
+        if kind=='put': return bs_price('p',S0,Kput,T,sig,r,q)
+        if kind=='spr': return (bs_price('c',S0,K1,T,sig,r,q)-bs_price('c',S0,K2,T,sig,r,q))
+        if kind=='ko':  return float(down_out_put(np.array([S0]),Kko,H,T,sig,r,q)[0])
     # 상태
     st={}
     for k in strat:
@@ -147,19 +147,19 @@ def plot_scatter(X,Y,title,ptcolor,yr,fname,figsize=(5.3,4.3)):
     ax.legend(fontsize=9,frameon=False,loc='upper left')
     fig.tight_layout(); fig.savefig(os.path.join(IMG,fname),bbox_inches='tight'); plt.close(fig)
 
-def build_fund(tag, sig, nP=7000):
+def build_fund(tag, sig, nP=7000, w=1.0):
     # 성장변동성펀드: put+KO+spread → 배리어 미터치/터치
-    Xg,Yg,t=run_mc(sig,True,True,nP=nP); nt=~t
+    Xg,Yg,t=run_mc(sig,True,True,nP=nP,w=w); nt=~t
     # 안정변동성펀드: put only
-    Xs,Ys,_=run_mc(sig,False,False,nP=nP)
+    Xs,Ys,_=run_mc(sig,False,False,nP=nP,w=w)
     # Y범위: 미터치 [-20,60], 터치 [-30,60] (지정)
     ysr=(-30, max(np.ceil(np.percentile(Ys,99)/10)*10,30))  # 하단 -30% 고정
-    plot_scatter(Xg[nt],Yg[nt],'성장변동성펀드 — 운용 중 -40% 미도달',GREEN,(-20,60),f'scat_{tag}_growth_nt.png')
-    plot_scatter(Xg[t], Yg[t], '성장변동성펀드 — 운용 중 -40% 도달',   RED,  (-30,60),f'scat_{tag}_growth_t.png')
-    plot_scatter(Xs,   Ys,    '안정변동성펀드 — 안정 변동성 매매',       NAVY, ysr,   f'scat_{tag}_stable.png',figsize=(7.4,4.3))
+    plot_scatter(Xg[nt],Yg[nt],'성장변동성펀드 — 운용 중 -40% 미도달'+(f' · 복제비율 {int(w*100)}%' if w!=1.0 else ''),GREEN,(-20,60),f'scat_{tag}_growth_nt.png')
+    plot_scatter(Xg[t], Yg[t], '성장변동성펀드 — 운용 중 -40% 도달'+(f' · 복제비율 {int(w*100)}%' if w!=1.0 else ''),   RED,  (-30,60),f'scat_{tag}_growth_t.png')
+    plot_scatter(Xs,   Ys,    '안정변동성펀드 — 안정 변동성 매매'+(f' · 복제비율 {int(w*100)}%' if w!=1.0 else ''),       NAVY, ysr,   f'scat_{tag}_stable.png',figsize=(7.4,4.3))
     print(f"[{tag} σ{int(sig*100)}] 성장 터치 {t.mean()*100:.1f}% | 미터치평균 {Yg[nt].mean():+.1f}% 터치평균 {Yg[t].mean():+.1f}% | 안정평균 {Ys.mean():+.1f}% 수익확률 {(Ys>=0).mean()*100:.0f}%")
 
 if __name__=='__main__':
     build_fund('kospi',0.50)
-    build_fund('top2', 0.60)
+    build_fund('top2', 0.60, w=1.10)   # Top2 덱: 복제비율 110%
     print("scatter charts done")

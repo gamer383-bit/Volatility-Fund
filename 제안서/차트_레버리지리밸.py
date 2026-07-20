@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""7페이지 차트: KODEX 하이닉스레버리지 — 상장 후 실제 성과와 리밸런싱 (ETF_데이터_pivot)
+"""7페이지 차트: 하이닉스 레버리지 ETF — 상장 후 실제 성과와 리밸런싱 (ETF_데이터_pivot)
 - 기간: 상장 2026-05-27 ~ parquet 최신일(자동), 시작=0%
 - 기초(1배)는 레버리지 일별수익률 ÷2 역산(근사), 단순2배=기초 누적×2
 - 하단: 이론 매매 = 2×일수익률 (상승일 매수/하락일 매도, 순자산 %)
@@ -32,7 +32,7 @@ print(f"레버리지 {cumL[-1]:+.1f}% | 기초(역산) {cumU[-1]:+.1f}% | 단순
 
 fig,(ax1,ax2)=plt.subplots(2,1,figsize=(7.67,5.71),dpi=100,height_ratios=[1.6,1],sharex=True)
 ax1.plot(dt,cumU,color=NAVY,lw=2.2,label='SK하이닉스 (기초, 1배 역산)')
-ax1.plot(dt,cumL,color=RED,lw=2.2,label='KODEX 하이닉스레버리지')
+ax1.plot(dt,cumL,color=RED,lw=2.2,label='하이닉스 레버리지 ETF')
 ax1.axhline(0,color='#9db4cc',lw=0.9)
 ax1.annotate(f'{cumL[-1]:+.1f}%',xy=(dt.iloc[-1],cumL[-1]),xytext=(6,0),textcoords='offset points',color=RED,fontsize=13,fontweight='bold',va='center')
 ax1.annotate(f'{cumU[-1]:+.1f}%',xy=(dt.iloc[-1],cumU[-1]),xytext=(6,0),textcoords='offset points',color=NAVY,fontsize=13,fontweight='bold',va='center')
@@ -51,7 +51,7 @@ if flat:
                  arrowprops=dict(arrowstyle='->',color=RED,lw=1.2))
     print(f"제자리 복귀 표시: {dt.iloc[fi]} 기초 {cumU[fi]:+.1f}% / 레버리지 {cumL[fi]:+.1f}%")
 ax1.set_ylabel('수익률 (%)',color=NAVY,fontsize=12)
-ax1.set_title('KODEX 하이닉스레버리지 — 상장 후 실제 성과와 리밸런싱',color=NAVY,fontsize=14.5,fontweight='bold',loc='left',pad=10)
+ax1.set_title('하이닉스 레버리지 ETF — 상장 후 실제 성과와 리밸런싱',color=NAVY,fontsize=14.5,fontweight='bold',loc='left',pad=10)
 ax1.legend(fontsize=10.5,frameon=False,loc='upper left')
 ax1.grid(alpha=0.2); ax1.spines[['top','right']].set_visible(False)
 ax1.margins(x=0.02);
