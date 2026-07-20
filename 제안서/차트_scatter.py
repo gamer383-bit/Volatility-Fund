@@ -161,6 +161,6 @@ def build_fund(tag, sig, nP=7000, w_growth=1.0, w_stable=1.0):
     print(f"[{tag} σ{int(sig*100)}] 성장 터치 {t.mean()*100:.1f}% | 미터치평균 {Yg[nt].mean():+.1f}% 터치평균 {Yg[t].mean():+.1f}% | 안정평균 {Ys.mean():+.1f}% 수익확률 {(Ys>=0).mean()*100:.0f}%")
 
 if __name__=='__main__':
-    build_fund('kospi',0.50)
+    build_fund('kospi',0.50, w_stable=1.10)
     build_fund('top2', 0.60, w_stable=1.10)   # Top2 덱: 안정형만 복제비율 110% (성장형 100%)
     print("scatter charts done")
