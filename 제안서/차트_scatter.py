@@ -39,7 +39,7 @@ def ko_delta(S,K,H,tau,sig,r,q):
 
 # ---------- MC 동적헤지 ----------
 def run_mc(sig, use_ko, use_spr, nP=6000, seed=20260513, w=1.0,
-           S0=100.,T=1.,r=0.03,q=0.02,days=252,tc=0.0005,maxW=1.8,
+           S0=100.,T=1.,r=0.03,q=0.02,days=252,tc_buy=0.0005,tc_sell=0.0030,maxW=1.8,
            Kput=100.,Kko=100.,H=60.,K1=110.,K2=150.):
     nSteps=int(round(days*T)); dt=T/nSteps
     drift=(r-q)-0.5*sig*sig; vol=sig*np.sqrt(dt)
@@ -88,7 +88,8 @@ def run_mc(sig, use_ko, use_spr, nP=6000, seed=20260513, w=1.0,
         tot=sum(raw.values())
         atot=np.abs(tot); scale=np.where(atot>maxW, maxW/np.where(atot>maxW,atot,1.0),1.0)
         for k in strat:
-            H_=st[k]; tgt=raw[k]*scale; dtrade=tgt-H_['h']; cost=tc*np.abs(dtrade)*S
+            H_=st[k]; tgt=raw[k]*scale; dtrade=tgt-H_['h']
+            cost=np.where(dtrade>0,tc_buy,tc_sell)*np.abs(dtrade)*S   # 매수 5bp / 매도 30bp(거래세)
             H_['cash']=H_['cash']-dtrade*S-cost; H_['h']=tgt; H_['tc']=H_['tc']+cost
     # 만기 정산
     dh_total=np.zeros(nP)
