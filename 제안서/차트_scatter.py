@@ -39,7 +39,7 @@ def ko_delta(S,K,H,tau,sig,r,q):
 
 # ---------- MC 동적헤지 ----------
 def run_mc(sig, use_ko, use_spr, nP=6000, seed=20260513, w=1.0,
-           S0=100.,T=1.,r=0.03,q=0.02,days=252,tc=0.0015,maxW=1.8,
+           S0=100.,T=1.,r=0.03,q=0.02,days=252,tc=0.0005,maxW=1.8,
            Kput=100.,Kko=100.,H=60.,K1=110.,K2=150.):
     nSteps=int(round(days*T)); dt=T/nSteps
     drift=(r-q)-0.5*sig*sig; vol=sig*np.sqrt(dt)
