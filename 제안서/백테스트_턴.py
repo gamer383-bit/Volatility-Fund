@@ -28,6 +28,7 @@ XLS=os.path.join(os.path.dirname(BASE),'data','삼성전자_하이닉스_코스�
 R,Q=0.025,0.025; TCB,TCS=0.0005,0.0030
 KPUT,KKO,H,K1,K2=100.,100.,60.,110.,140.
 TARGET=0.15; START='2021-07-28'; SIGCAP=0.60; WMIN=0.10   # 최저 편입비 10% (사용자 규칙)
+END='2026-07-27'   # 16·17페이지 기준일: 7/27 종가까지 (사용자 지정, 18페이지는 별도 스크립트)
 
 def load_top2():
     """엑셀 D열(지수생성_top2.py로 생성한 삼성·하이닉스 50:50 일별리밸 지수)을
@@ -39,6 +40,7 @@ def load_top2():
     idx=pd.to_datetime(s.index); s=s[idx.dayofweek<5]
     chg=s.pct_change().fillna(1.0); return s[chg!=0]
 top2=load_top2()
+top2=top2[top2.index<=pd.Timestamp(END)]
 ret=top2.pct_change().dropna()
 dts=ret.index
 print(f"Top2 지수(50:50 일별리밸, 엑셀 D열): {dts[0].date()} ~ {dts[-1].date()} ({len(ret)}영업일)")
