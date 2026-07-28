@@ -6,9 +6,10 @@
 - σ = 직전 60영업일(주말 제외) 연환산 실현변동성. 2021-07-28 직후 60일 미충족 구간은
   자료 시작부터 60일간의 변동성으로 백필(미래참조 허용, 사용자 지정)
 - r=q=2.5% 고정 · 매매비용 매수 5bp/매도 30bp · 주말 포지션·수익률 변동 없음(실거래일만)
-- 성장형: 참여 100%, 캡 180%, 풋100+KO60+콜스프레드110/150 (배리어 60, 턴 시작가 대비)
-- 안정형: ATM 풋매도, 참여 110%, 캡 100%
-데이터: xlsx(~2026-07-10 실거래일 정제) + 2026-07-13~27 Yahoo 실측(7/17 휴장, 3중 검증)
+- σ 상한 60% (60% 초과 시 60% 사용, 성장형·안정형 공통)
+- 성장형: 3개 옵션 복제비율 100%, 최대 편입비 180%, 풋100+KO60+콜스프레드110/140
+- 안정형: ATM 풋매도 복제비율 110%, 최대 편입비 100%
+데이터: 기준 엑셀 D열 = 삼성전자·SK하이닉스 50:50 일별리밸런싱 지수(리밸비용 0, 지수생성_top2.py)
 """
 import os, platform, sys, io, math
 sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
@@ -25,33 +26,27 @@ IMG=os.path.join(BASE,'img')
 XLS=os.path.join(os.path.dirname(BASE),'data','삼성전자_하이닉스_코스피_코스피200_코스닥150_최근5년_주가데이터.xlsx')
 
 R,Q=0.025,0.025; TCB,TCS=0.0005,0.0030
-KPUT,KKO,H,K1,K2=100.,100.,60.,110.,150.
-TARGET=0.15; START='2021-07-28'
+KPUT,KKO,H,K1,K2=100.,100.,60.,110.,140.
+TARGET=0.15; START='2021-07-28'; SIGCAP=0.60
 
-def series(colidx):
+def load_top2():
+    """엑셀 D열(지수생성_top2.py로 생성한 삼성·하이닉스 50:50 일별리밸 지수)을
+    유일한 기초지수로 사용. 주말·휴장 채움(변동 0) 행 제거."""
     raw=pd.read_excel(XLS,sheet_name='삼성전자_하이닉스',header=None)
     d=raw.iloc[14:]
-    s=pd.Series(pd.to_numeric(d.iloc[:,colidx],errors='coerce').values,
+    s=pd.Series(pd.to_numeric(d.iloc[:,3],errors='coerce').values,
                 index=pd.to_datetime(d.iloc[:,0]).values).dropna()
     idx=pd.to_datetime(s.index); s=s[idx.dayofweek<5]
     chg=s.pct_change().fillna(1.0); return s[chg!=0]
-sam=series(4); hyx=series(8)
-web_sam={'2026-07-13':254500,'2026-07-14':263000,'2026-07-15':279500,'2026-07-16':255000,
-         '2026-07-20':244000,'2026-07-21':259000,'2026-07-22':260500,'2026-07-23':270000,
-         '2026-07-24':249500,'2026-07-27':254000}
-web_hyx={'2026-07-13':1845000,'2026-07-14':1913000,'2026-07-15':2082000,'2026-07-16':1842000,
-         '2026-07-20':1764000,'2026-07-21':1836000,'2026-07-22':1830000,'2026-07-23':1919000,
-         '2026-07-24':1759000,'2026-07-27':1816000}
-sam=pd.concat([sam,pd.Series({pd.Timestamp(k):float(v) for k,v in web_sam.items()})])
-hyx=pd.concat([hyx,pd.Series({pd.Timestamp(k):float(v) for k,v in web_hyx.items()})])
-df=pd.concat([sam.rename('s'),hyx.rename('h')],axis=1).dropna().sort_index()
-ret=(0.5*df['s'].pct_change()+0.5*df['h'].pct_change()).dropna()
+top2=load_top2()
+ret=top2.pct_change().dropna()
 dts=ret.index
-print(f"Top2 시계열: {dts[0].date()} ~ {dts[-1].date()} ({len(ret)}영업일)")
+print(f"Top2 지수(50:50 일별리밸, 엑셀 D열): {dts[0].date()} ~ {dts[-1].date()} ({len(ret)}영업일)")
 
 # σ: 직전 60영업일 롤링(완전 60일), 초기 구간은 최초 60일 값으로 백필(미래참조 허용)
+# 사용자 규칙: 변동성 60% 초과 시 60%로 상한 (성장형·안정형 공통)
 lr=np.log(1+ret)
-vol60=(lr.rolling(60,min_periods=60).std()*math.sqrt(252)).bfill()
+vol60=(lr.rolling(60,min_periods=60).std()*math.sqrt(252)).bfill().clip(upper=SIGCAP)
 
 def N1(x): return float(Nv(x))
 def bs_p(t,S,K,T,sig):
@@ -89,9 +84,11 @@ def simulate(kind):
     - σ는 매일 직전 60영업일 연환산으로 갱신, r=q=2.5%
     - 회계: 주식 편입분=주가수익률, 잔여분=현금성 연 2.5%"""
     turns=[]
+    G={'d':[],'V':[],'w':[],'ev':[]}                    # 연속 시계열(1년 윈도우 차트용)
     rday=R/252
     a=int(np.searchsorted(dts,pd.Timestamp(START)))     # 최초 앵커: 2021-07-28 종가 세팅(다음날부터 노출)
     V_cont=1.0
+    first_anchor=True
     while a+1<len(dts):
         mat=dts[a]+pd.Timedelta(days=365)
         i_mat=int(np.searchsorted(dts,mat,side='right'))-1
@@ -103,6 +100,11 @@ def simulate(kind):
         w=(w_growth(S,tau0,sig,True) if kind=='g' else w_stable(S,tau0,sig))
         V_cont*=1.0-TCB*w                    # 앵커일 종가 재매수 비용
         turnV0=V_cont
+        if first_anchor:
+            G['d'].append(dts[a]); G['V'].append(V_cont); G['w'].append(w)
+            first_anchor=False
+        elif G['d'] and G['d'][-1]==dts[a]:  # 재세팅일: 청산·재매수 비용 반영 + 새 편입비로 갱신
+            G['V'][-1]=V_cont; G['w'][-1]=w
         pS=[S]; pV=[100.0]; pw=[w]
         j=a+1; hit=False
         while j<=i_mat and j<len(dts):
@@ -112,6 +114,7 @@ def simulate(kind):
             if kind=='g' and alive and S<=H: alive=False; touch=dts[j]
             if V_cont/turnV0>=1.0+TARGET:    # 달성 당일: 리밸 없이 종가 청산으로 직행
                 pS.append(S); pV.append(V_cont/turnV0*100); pw.append(w)
+                G['d'].append(dts[j]); G['V'].append(V_cont); G['w'].append(w)
                 hit=True; reason='목표달성'; break
             tau=max((mat-dts[j]).days/365.0,1e-8)
             sig=max(float(vol60.iloc[j]),0.05)
@@ -119,6 +122,7 @@ def simulate(kind):
             V_cont*=1.0-(TCB if nw>w else TCS)*abs(nw-w)
             w=nw
             pS.append(S); pV.append(V_cont/turnV0*100); pw.append(w)
+            G['d'].append(dts[j]); G['V'].append(V_cont); G['w'].append(w)
             j+=1
         e_idx=min(j,i_mat,len(dts)-1)
         ongoing=(not hit) and (e_idx==len(dts)-1) and (i_mat>len(dts)-1 or (dts[a]+pd.Timedelta(days=360))>dts[-1])
@@ -128,14 +132,15 @@ def simulate(kind):
         turns.append(dict(turn=len(turns)+1,s=dts[a],e=dts[e_idx],base=S/100-1,
                           fund=V_cont/turnV0-1,pS=np.array(pS),pV=np.array(pV),pw=np.array(pw),
                           touch=touch,reason=reason))
+        if not ongoing: G['ev'].append((dts[e_idx],reason))
         if ongoing: break
         a=e_idx                              # 다음 앵커 = 종료 당일(같은 종가로 재세팅, 익일부터 노출)
-    return turns
+    return turns,G
 
-results={}
+results={}; gseries={}
 for kind,nm in (('g','성장형'),('s','안정형')):
-    turns=simulate(kind)
-    results[kind]=turns
+    turns,G=simulate(kind)
+    results[kind]=turns; gseries[kind]=G
     tot=np.prod([1+r['fund'] for r in turns])-1
     print(f"\n[{nm}] 총 {len(turns)}턴 · 누적 {tot*100:+.1f}%")
     for r in turns:
@@ -179,35 +184,59 @@ def draw_table(kind,fname,prod_label):
 draw_table('g','qpms_table_g.png','상품1(성장형)')
 draw_table('s','qpms_table_s.png','상품2(안정형)')
 
-# ---- 예시 그래프: 하락기/상승기 턴 ----
-def draw_turn(kind,r,fname,label,color):
-    x=np.arange(len(r['pS']))
+# ---- 예시 그래프: 하락/상승 1년 윈도우 (재운용 포함 연속 성과, 사용자 규칙 10) ----
+import matplotlib.dates as mdates
+a0=int(np.searchsorted(dts,pd.Timestamp(START)))
+def year_windows():
+    """기초지수 1년(달력) 수익률이 최저/최고인 윈도우 시작일 탐색 (시작≥최초 앵커)"""
+    best=(None,-np.inf); worst=(None,np.inf)
+    for i in range(a0,len(dts)):
+        t1=dts[i]+pd.Timedelta(days=365)
+        if t1>dts[-1]: break
+        j=int(np.searchsorted(dts,t1,side='right'))-1
+        r1=float(top2.iloc[j]/top2.iloc[i]-1)
+        if r1>best[1]: best=(dts[i],r1)
+        if r1<worst[1]: worst=(dts[i],r1)
+    return worst[0],best[0]
+
+def draw_year(kind,color,t0,label,fname):
+    G=gseries[kind]
+    gd=pd.DatetimeIndex(G['d']); gV=np.array(G['V']); gw=np.array(G['w'])
+    t1=t0+pd.Timedelta(days=365)
+    m=(gd>=t0)&(gd<=t1)
+    d=gd[m]; V=gV[m]/gV[m][0]*100; w=gw[m]*100
+    base=top2[(top2.index>=t0)&(top2.index<=t1)]
+    base=base/base.iloc[0]*100
     fig,ax=plt.subplots(figsize=(7.4,3.16),dpi=150)
     ax2=ax.twinx()
-    ax2.fill_between(x,r['pw']*100,color=color,alpha=0.12,lw=0)
+    ax2.fill_between(d,w,color=color,alpha=0.12,lw=0)
     ax2.set_ylim(0,200); ax2.set_yticks([0,50,100,150,200])
     ax2.set_yticklabels(['0%','','100%','','200%'],fontsize=8,color=GRAY)
-    ax.plot(x,r['pS'],color=SKY,lw=1.6,label='기초지수(시작=100)')
-    ax.plot(x,r['pV'],color=color,lw=2.0,label='펀드 NAV')
+    ax.plot(base.index,base.values,color=SKY,lw=1.6,label='기초지수(시작=100)')
+    ax.plot(d,V,color=color,lw=2.0,label='펀드 NAV(재운용 연속)')
     ax.axhline(100,color='#c9d5e2',lw=0.8)
-    ax.axhline(115,color='#c05000',ls=':',lw=1.0)
-    if r['touch'] is not None:
-        ti=int(np.searchsorted(dts,r['touch']))-int(np.searchsorted(dts,r['s']))+1
-        ax.axvline(ti,color='#D02F00',ls='--',lw=1.1)
-    ax.set_title(f"{label} — 턴{r['turn']} ({r['s'].date()} ~ {r['e'].date()})  기초 {r['base']*100:+.1f}% / 펀드 {r['fund']*100:+.1f}% [{r['reason']}]",
-                 fontsize=10,color=NAVY,fontweight='bold',loc='left')
-    ax.set_xlabel('영업일차',fontsize=9,color=NAVY)
+    hits=[dt for dt,rs in G['ev'] if rs=='목표달성' and t0<dt<=t1]
+    for hd in hits:
+        ax.axvline(hd,color='#c05000',ls=':',lw=1.0,alpha=0.8)
+        hv=float(V[d.searchsorted(hd)]) if d.searchsorted(hd)<len(V) else None
+        if hv is not None:
+            ax.plot([hd],[hv],marker='*',ms=11,color='#c05000',mec='white',mew=0.7,zorder=6)
+    b1=float(base.iloc[-1]-100); f1=float(V[-1]-100)
+    ax.set_title(f"{label} 1년 ({t0.date()} ~ {min(t1,dts[-1]).date()})  기초 {b1:+.1f}% / 펀드 {f1:+.1f}%"
+                 +(f"  ·  +15% 달성 {len(hits)}회" if hits else ""),
+                 fontsize=9.5,color=NAVY,fontweight='bold',loc='left')
     ax.legend(fontsize=8.5,frameon=False,loc='upper left')
     ax.grid(alpha=0.2); ax.spines[['top']].set_visible(False)
     ax.tick_params(labelsize=9)
-    fig.text(0.99,0.01,'음영=편입비(우축) · 점선=목표 +15%',ha='right',color=GRAY,fontsize=8)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%y.%m'))
+    fig.text(0.99,0.01,'음영=편입비(우축) · ★=+15% 달성(당일 종가 청산 후 재운용)',ha='right',color=GRAY,fontsize=8)
     fig.tight_layout()
     fig.savefig(os.path.join(IMG,fname),bbox_inches='tight'); plt.close(fig)
-    print("saved",fname)
+    print("saved",fname,f"기초 {b1:+.1f}% 펀드 {f1:+.1f}% 달성 {len(hits)}회")
+
+t_down,t_up=year_windows()
+print(f"\n하락 1년 윈도우 시작 {t_down.date()} · 상승 1년 윈도우 시작 {t_up.date()}")
 for kind,color in (('g',ORANGE),('s',NAVY)):
-    rows=results[kind]
-    down=min(rows,key=lambda r:r['base'])
-    up=max(rows,key=lambda r:r['base'])
-    draw_turn(kind,down,f'qpms_down_{kind}.png','하락기 예시',color)
-    draw_turn(kind,up,  f'qpms_up_{kind}.png','상승기 예시',color)
+    draw_year(kind,color,t_down,'하락기 예시',f'qpms_down_{kind}.png')
+    draw_year(kind,color,t_up,  '상승기 예시',f'qpms_up_{kind}.png')
 print("done")

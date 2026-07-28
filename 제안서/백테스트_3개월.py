@@ -19,30 +19,22 @@ BASE=os.path.dirname(os.path.abspath(__file__))
 IMG=os.path.join(BASE,'img')
 XLS=os.path.join(os.path.dirname(BASE),'data','삼성전자_하이닉스_코스피_코스피200_코스닥150_최근5년_주가데이터.xlsx')
 R,Q=0.025,0.025; TCB,TCS=0.0005,0.0030
-KPUT,KKO,H,K1,K2=100.,100.,60.,110.,150.
-START='2026-04-27'
+KPUT,KKO,H,K1,K2=100.,100.,60.,110.,140.
+START='2026-04-27'; SIGCAP=0.60
 
-def series(colidx):
+def load_top2():
+    """엑셀 D열(지수생성_top2.py로 생성한 삼성·하이닉스 50:50 일별리밸 지수)"""
     raw=pd.read_excel(XLS,sheet_name='삼성전자_하이닉스',header=None)
     d=raw.iloc[14:]
-    s=pd.Series(pd.to_numeric(d.iloc[:,colidx],errors='coerce').values,
+    s=pd.Series(pd.to_numeric(d.iloc[:,3],errors='coerce').values,
                 index=pd.to_datetime(d.iloc[:,0]).values).dropna()
     idx=pd.to_datetime(s.index); s=s[idx.dayofweek<5]
     chg=s.pct_change().fillna(1.0); return s[chg!=0]
-sam=series(4); hyx=series(8)
-web_sam={'2026-07-13':254500,'2026-07-14':263000,'2026-07-15':279500,'2026-07-16':255000,
-         '2026-07-20':244000,'2026-07-21':259000,'2026-07-22':260500,'2026-07-23':270000,
-         '2026-07-24':249500,'2026-07-27':254000}
-web_hyx={'2026-07-13':1845000,'2026-07-14':1913000,'2026-07-15':2082000,'2026-07-16':1842000,
-         '2026-07-20':1764000,'2026-07-21':1836000,'2026-07-22':1830000,'2026-07-23':1919000,
-         '2026-07-24':1759000,'2026-07-27':1816000}
-sam=pd.concat([sam,pd.Series({pd.Timestamp(k):float(v) for k,v in web_sam.items()})])
-hyx=pd.concat([hyx,pd.Series({pd.Timestamp(k):float(v) for k,v in web_hyx.items()})])
-df=pd.concat([sam.rename('s'),hyx.rename('h')],axis=1).dropna().sort_index()
-ret=(0.5*df['s'].pct_change()+0.5*df['h'].pct_change()).dropna()
+top2=load_top2()
+ret=top2.pct_change().dropna()
 dts=ret.index
 lr=np.log(1+ret)
-vol60=(lr.rolling(60,min_periods=60).std()*math.sqrt(252)).bfill()
+vol60=(lr.rolling(60,min_periods=60).std()*math.sqrt(252)).bfill().clip(upper=SIGCAP)  # σ 상한 60%
 
 def N1(x): return float(Nv(x))
 def bs_p(t,S,K,T,sig):
