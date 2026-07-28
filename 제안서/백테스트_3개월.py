@@ -79,38 +79,44 @@ rday=R/252; qday=Q/252
 TARGET=0.15
 
 def run(target_on):
-    """3개월 구간 시뮬. target_on=True면 턴 내 +15% 도달 시 다음날 재운용(기준가·만기 재설정).
-    반환: dates, base(연속), 전략별 V(연속)·w, 재운용일 리스트"""
+    """3개월 구간. target_on=True: 턴 내 +15% 달성 시 종가 청산(30bp) → 다음날 현금 →
+    그날 종가 재세팅(기준가·배리어·만기 1년, 재매수 5bp) → 익일부터 노출 (사용자 규칙)"""
     out={}
     for kind in ('g','s'):
-        S=100.; V=1.; alive=True
-        turnV=1.0                       # 턴 내 누적(목표 판정용)
-        t_start=i0; mat=dts[t_start]+pd.Timedelta(days=365)
+        a0=i0-1                              # 앵커: 2026-04-24 종가 (노출은 4/27부터)
+        mat=dts[a0]+pd.Timedelta(days=365)
         i_mat=int(np.searchsorted(dts,mat,side='right'))-1
-        pV=[100.]; pw=[]; restarts=[]
-        sig=max(float(vol60.iloc[i0-1]),0.05)
-        w=(w_growth(100.,(i_mat-i0+1)/252,sig,True) if kind=='g' else w_stable(100.,(i_mat-i0+1)/252,sig))
-        pw.append(w)
+        S=100.; V=1.; alive=True
+        sig=max(float(vol60.iloc[a0]),0.05)
+        w=(w_growth(S,(i_mat-a0)/252,sig,True) if kind=='g' else w_stable(S,(i_mat-a0)/252,sig))
+        V*=1.0-TCB*w                         # 최초 매수
+        turnV0=V
+        pV=[100.]; pw=[w]; restarts=[]
+        pending=False                        # 청산 후 현금 상태(다음날 재세팅 대기)
         for j in range(i0,i_end+1):
             r0=float(ret.iloc[j]); sig=max(float(vol60.iloc[j]),0.05)
-            g_=1.0+w*(r0+qday)+(1.0-w)*rday
-            V*=g_; turnV*=g_
+            V*=1.0+w*(r0+qday)+(1.0-w)*rday
             S*=1.0+r0
             if kind=='g' and alive and S<=H: alive=False
-            hit=target_on and turnV>=1.0+TARGET
-            if hit and j<i_end:
-                # 재운용: 다음 영업일부터 새 턴 (기준가=현재, 만기 1년, 배리어 리셋)
-                restarts.append(dts[j])
-                S=100.; alive=True; turnV=1.0
-                t_start=j+1; mat=dts[min(t_start,i_end)]+pd.Timedelta(days=365)
+            if pending:
+                # 재세팅일 종가: 기준가=오늘 종가, 만기 1년, 배리어 리셋, 재매수
+                S=100.; alive=True
+                mat=dts[j]+pd.Timedelta(days=365)
                 i_mat=int(np.searchsorted(dts,mat,side='right'))-1
-            tau=max((i_mat-j)/252,1e-8)
-            cost_base=w
-            nw=(w_growth(S,tau,sig,alive) if kind=='g' else w_stable(S,tau,sig))
-            cost=(TCB if nw>w else TCS)*abs(nw-w)
-            V-=cost*V; turnV*=(1-cost); w=nw
+                nw=(w_growth(S,(i_mat-j)/252,sig,True) if kind=='g' else w_stable(S,(i_mat-j)/252,sig))
+                V*=1.0-TCB*nw
+                w=nw; turnV0=V; pending=False
+            else:
+                tau=max((i_mat-j)/252,1e-8)
+                nw=(w_growth(S,tau,sig,alive) if kind=='g' else w_stable(S,tau,sig))
+                V*=1.0-(TCB if nw>w else TCS)*abs(nw-w)
+                w=nw
+                if target_on and V/turnV0>=1.0+TARGET and j<i_end:
+                    restarts.append(dts[j])   # 달성일(종가 청산)
+                    V*=1.0-TCS*w              # 전량 청산 비용
+                    w=0.0; pending=True       # 다음날 현금
             pV.append(V*100); pw.append(w)
-        out[kind]=dict(pV=np.array(pV),pw=np.array(pw[:-1]),restarts=restarts)
+        out[kind]=dict(pV=np.array(pV),pw=np.array(pw),restarts=restarts)
     base=[100.]
     for j in range(i0,i_end+1): base.append(base[-1]*(1+float(ret.iloc[j])))
     dates=[dts[i0-1]]+list(dts[i0:i_end+1])
