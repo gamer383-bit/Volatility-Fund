@@ -79,8 +79,9 @@ rday=R/252; qday=Q/252
 TARGET=0.15
 
 def run(target_on):
-    """3개월 구간. target_on=True: 턴 내 +15% 달성 시 종가 청산(30bp) → 다음날 현금 →
-    그날 종가 재세팅(기준가·배리어·만기 1년, 재매수 5bp) → 익일부터 노출 (사용자 규칙)"""
+    """3개월 구간. target_on=True: 턴 내 +15% 달성 시 당일 종가 전량 청산(30bp) 후
+    같은 종가로 즉시 재세팅(기준가·배리어·만기 1년, 재매수 5bp) → 익일부터 새 턴 노출.
+    회계: 주식 편입분=주가수익률, 잔여분=현금성 연 2.5% (사용자 규칙)"""
     out={}
     for kind in ('g','s'):
         a0=i0-1                              # 앵커: 2026-04-24 종가 (노출은 4/27부터)
@@ -92,28 +93,25 @@ def run(target_on):
         V*=1.0-TCB*w                         # 최초 매수
         turnV0=V
         pV=[100.]; pw=[w]; restarts=[]
-        pending=False                        # 청산 후 현금 상태(다음날 재세팅 대기)
         for j in range(i0,i_end+1):
             r0=float(ret.iloc[j]); sig=max(float(vol60.iloc[j]),0.05)
-            V*=1.0+w*(r0+qday)+(1.0-w)*rday
+            V*=1.0+w*r0+(1.0-w)*rday         # 주식분=주가수익률, 잔여분=현금 2.5%/년
             S*=1.0+r0
             if kind=='g' and alive and S<=H: alive=False
-            if pending:
-                # 재세팅일 종가: 기준가=오늘 종가, 만기 1년, 배리어 리셋, 재매수
+            if target_on and V/turnV0>=1.0+TARGET and j<i_end:
+                # 달성 당일 종가: 전량 청산(30bp) → 같은 종가로 만기 1년 재세팅·재매수(5bp)
+                restarts.append(dts[j])
+                V*=1.0-TCS*w
                 S=100.; alive=True
                 mat=dts[j]+pd.Timedelta(days=365)
                 nw=(w_growth(S,1.0,sig,True) if kind=='g' else w_stable(S,1.0,sig))
                 V*=1.0-TCB*nw
-                w=nw; turnV0=V; pending=False
+                w=nw; turnV0=V
             else:
                 tau=max((mat-dts[j]).days/365.0,1e-8)
                 nw=(w_growth(S,tau,sig,alive) if kind=='g' else w_stable(S,tau,sig))
                 V*=1.0-(TCB if nw>w else TCS)*abs(nw-w)
                 w=nw
-                if target_on and V/turnV0>=1.0+TARGET and j<i_end:
-                    restarts.append(dts[j])   # 달성일(종가 청산)
-                    V*=1.0-TCS*w              # 전량 청산 비용
-                    w=0.0; pending=True       # 다음날 현금
             pV.append(V*100); pw.append(w)
         out[kind]=dict(pV=np.array(pV),pw=np.array(pw),restarts=restarts)
     base=[100.]

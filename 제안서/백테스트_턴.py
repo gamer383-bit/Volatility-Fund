@@ -84,17 +84,15 @@ def w_stable(S,tau,sig):
 
 def simulate(kind):
     """청산·재세팅 규칙(사용자 지정):
-    - 달성/만기일 D 종가에 전량 청산(매도 30bp)
-    - D+1: 현금 보유(r만 수취), D+1 종가로 기준가·행사가·배리어·만기(1년) 재세팅, 재매수(5bp)
-    - D+2 수익률부터 새 턴 노출. σ는 매일 직전 60영업일로 갱신(재세팅 시점 자동 반영)"""
+    - +15% 달성/만기일 D 종가에 전량 청산(매도 30bp) 후 같은 종가로 즉시 재세팅:
+      기준가·행사가·배리어·만기(1년) 재설정, 재매수(5bp) → D+1 수익률부터 새 턴 노출
+    - σ는 매일 직전 60영업일 연환산으로 갱신, r=q=2.5%
+    - 회계: 주식 편입분=주가수익률, 잔여분=현금성 연 2.5%"""
     turns=[]
-    rday=R/252; qday=Q/252
+    rday=R/252
     a=int(np.searchsorted(dts,pd.Timestamp(START)))     # 최초 앵커: 2021-07-28 종가 세팅(다음날부터 노출)
     V_cont=1.0
-    first=True
     while a+1<len(dts):
-        if not first:
-            V_cont*=1.0+rday                 # 재세팅일(앵커일) 현금 보유
         mat=dts[a]+pd.Timedelta(days=365)
         i_mat=int(np.searchsorted(dts,mat,side='right'))-1
         n=i_mat-a
@@ -109,17 +107,18 @@ def simulate(kind):
         j=a+1; hit=False
         while j<=i_mat and j<len(dts):
             r0=float(ret.iloc[j])
-            V_cont*=1.0+w*(r0+qday)+(1.0-w)*rday
+            V_cont*=1.0+w*r0+(1.0-w)*rday    # 주식분=주가수익률, 잔여분=현금 2.5%/년
             S*=1.0+r0
             if kind=='g' and alive and S<=H: alive=False; touch=dts[j]
+            if V_cont/turnV0>=1.0+TARGET:    # 달성 당일: 리밸 없이 종가 청산으로 직행
+                pS.append(S); pV.append(V_cont/turnV0*100); pw.append(w)
+                hit=True; reason='목표달성'; break
             tau=max((mat-dts[j]).days/365.0,1e-8)
             sig=max(float(vol60.iloc[j]),0.05)
             nw=(w_growth(S,tau,sig,alive) if kind=='g' else w_stable(S,tau,sig))
             V_cont*=1.0-(TCB if nw>w else TCS)*abs(nw-w)
             w=nw
             pS.append(S); pV.append(V_cont/turnV0*100); pw.append(w)
-            if V_cont/turnV0>=1.0+TARGET:
-                hit=True; reason='목표달성'; break
             j+=1
         e_idx=min(j,i_mat,len(dts)-1)
         ongoing=(not hit) and (e_idx==len(dts)-1) and (i_mat>len(dts)-1 or (dts[a]+pd.Timedelta(days=360))>dts[-1])
@@ -130,8 +129,7 @@ def simulate(kind):
                           fund=V_cont/turnV0-1,pS=np.array(pS),pV=np.array(pV),pw=np.array(pw),
                           touch=touch,reason=reason))
         if ongoing: break
-        a=e_idx+1                            # 다음 앵커 = 종료 다음 영업일(재세팅일)
-        first=False
+        a=e_idx                              # 다음 앵커 = 종료 당일(같은 종가로 재세팅, 익일부터 노출)
     return turns
 
 results={}
