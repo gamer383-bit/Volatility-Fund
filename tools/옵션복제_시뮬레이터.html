@@ -83,6 +83,19 @@
   @media(max-width:640px){.two-charts{grid-template-columns:1fr}}
 
   .empty{color:var(--dim);text-align:center;padding:40px 10px;font-size:13px}
+  /* 편입비·예상수익률 테이블 (제안서 11·13p 형식) */
+  .wt-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:1100px){.wt-grid{grid-template-columns:1fr}}
+  .wt-block h3{font-size:13px;margin:2px 0 8px;color:var(--accent)}
+  table.wtable{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:12.5px}
+  table.wtable th{background:var(--panel2);color:var(--muted);font-weight:700;padding:6px 8px;
+    border:1px solid var(--line);text-align:center;font-size:11.5px}
+  table.wtable td{padding:5px 8px;border:1px solid var(--grid);text-align:center;color:var(--ink)}
+  table.wtable td:first-child{color:var(--muted);font-weight:600;background:var(--panel2)}
+  table.wtable tr.s0row td{font-weight:700;background:#1a2536}
+  table.wtable tr.s0row td:first-child{color:var(--accent)}
+  table.wtable td.hl{background:#3a2a12;color:var(--warn);font-weight:700}
+  table.wtable td.ko{color:var(--down);font-size:11px}
   .legend-inline{display:flex;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--muted);margin:2px 0 6px}
   .legend-inline span{display:inline-flex;align-items:center;gap:4px}
   .legend-inline i{width:14px;height:3px;border-radius:2px;display:inline-block}
@@ -213,6 +226,16 @@
       </div>
       <div class="col-body" id="mc-body"><div class="empty">[시뮬레이션 실행]을 누르면 몬테카를로 복제 결과가 표시됩니다.</div></div>
     </div>
+  </div>
+
+  <!-- ============ 지수대별 편입비·예상수익률 테이블 (제안서 11·13p 형식) ============ -->
+  <div class="col" id="wtable-col" style="margin-top:16px">
+    <div class="col-head">
+      <span class="pill">제안서 형식</span>
+      <h2>지수대별 실제 편입비 · 예상수익률 테이블</h2>
+      <span class="desc">선택 전략 합산(복제비율 반영) · 배리어 옵션은 <b>미터치(생존) 가정</b> · 이론가 기반 즉시 갱신</span>
+    </div>
+    <div class="col-body" id="wtable-body"><div class="empty">전략을 선택하면 편입비 테이블이 표시됩니다.</div></div>
   </div>
 
   <!-- ============ 제안서용 대형 산점도 ============ -->
@@ -550,6 +573,64 @@ function drawScatter(cv,xs,ys,opt){
   ctx.fillText('만기 기초자산 가격 (S₀ = 100 기준)',(pl+w-pr)/2,h-4);
   ctx.save();ctx.translate(15,(pt+(h-pb))/2);ctx.rotate(-Math.PI/2);ctx.textBaseline='top';
   ctx.fillText('동적헤지 실현수익률 (%)',0,0);ctx.restore();
+}
+
+/* =====================================================================
+   지수대별 실제 편입비·예상수익률 테이블 (제안서 11·13페이지 형식)
+   - 행: 지수 140 → 60 (S₀=100 기준, 10pt 단위)
+   - 열: 잔존만기 T·¾T·½T·¼T + 만기 (만기 편입비는 1영업일 전 기준)
+   - 편입비 = Σ 전략델타×복제비율, [0, 최대편입비] 클램프
+   - 배리어 옵션은 미터치(생존) 가정. 지수≤배리어 행은 낙아웃 확정이라 별도 표기.
+   ===================================================================== */
+function renderWeightTable(P,strats){
+  const host=document.getElementById('wtable-body');
+  if(!strats.length){host.innerHTML='<div class="empty">전략을 선택하면 편입비 테이블이 표시됩니다.</div>';return;}
+  const S0=P.S0,T=P.T,r=P.r,maxW=P.mc.maxW;
+  const mTot=T*12;
+  const fm=m=>{const v=Math.round(m*10)/10; return (v%1===0? v.toFixed(0):v.toFixed(1))+'개월';};
+  const taus=[{lbl:fm(mTot),t:T},{lbl:fm(mTot*0.75),t:T*0.75},{lbl:fm(mTot*0.5),t:T*0.5},{lbl:fm(mTot*0.25),t:T*0.25},{lbl:'만기',t:null}];
+  const levels=[140,130,120,110,100,90,80,70,60];
+  const barriers=strats.filter(s=>s.isBarrier).map(s=>s.H);
+  const Hmax=barriers.length?Math.max(...barriers):-Infinity;
+  const sumPrem0=strats.reduce((a,s)=>a+s.premium0,0);
+  const clampW=d=>Math.min(Math.max(d,0),maxW);
+  const totDelta=(S,tau)=>strats.reduce((a,st)=>a+stratDelta(st,S,tau),0);   // 미터치(생존) 가정: DOP 폐형식 그대로
+  const totValue=(S,tau)=>strats.reduce((a,st)=>a+st.price(S,tau),0);
+  const totPnlT =(S)=>strats.reduce((a,st)=>a+st.pnlUnit(S,true),0);        // 만기 정산(미터치)
+  const wCell=(lv,tc)=>{
+    const S=S0*lv/100;
+    if(S<=Hmax) return {txt:'낙아웃',ko:true};                              // 배리어 이하 = 미터치 가정 불가
+    const tau=tc.t===null? 1/252 : tc.t;                                    // 만기 편입비는 1영업일 전 기준
+    return {txt:(clampW(totDelta(S,tau))*100).toFixed(0)+'%'};
+  };
+  const rCell=(lv,tc)=>{
+    const S=S0*lv/100;
+    if(S<=Hmax) return {txt:'낙아웃',ko:true};
+    const v=tc.t===null? totPnlT(S) : totValue(S,tc.t)-sumPrem0*Math.exp(r*(T-tc.t));
+    const p=v/S0*100;
+    return {txt:(p>=0?'+':'')+p.toFixed(1)+'%', hl:p>=15};
+  };
+  const mkTable=(title,cellFn)=>{
+    let h=`<div class="wt-block"><h3>${title}</h3><table class="wtable"><tr><th>지수 / 잔존만기</th>${taus.map(t=>`<th>${t.lbl}</th>`).join('')}</tr>`;
+    levels.forEach(lv=>{
+      h+=`<tr${lv===100?' class="s0row"':''}><td>${lv}</td>`;
+      taus.forEach(tc=>{const c=cellFn(lv,tc);
+        h+=`<td class="${c.ko?'ko':''}${c.hl?' hl':''}">${c.txt}</td>`;});
+      h+='</tr>';
+    });
+    return h+'</table></div>';
+  };
+  const mix=strats.map(s=>`${s.key} ${(s.weight*100).toFixed(0)}%`).join(' + ');
+  host.innerHTML=`<div class="scard" style="border-bottom:none">
+    <div class="sc-title"><span class="dot" style="background:var(--accent2)"></span>
+      <h3>리밸런싱일 지수 = 100 기준</h3>
+      <span class="badge">${mix} · σ ${(P.sig*100).toFixed(0)}% · r ${(P.r*100).toFixed(1)}% · q ${(P.q*100).toFixed(1)}% · 최대 편입비 ${(maxW*100).toFixed(0)}%</span></div>
+    <div class="wt-grid">
+      ${mkTable('실제 편입비 (주식 보유비중)',wCell)}
+      ${mkTable('예상수익률 (원금 대비 · <span style="color:var(--warn)">15% 이상 음영</span>)',rCell)}
+    </div>
+    <div class="note">· 편입비 = 선택 전략 델타 합 × 복제비율, 0~최대 편입비로 제한 · 배리어 옵션은 <b>미터치(생존) 가정</b>이며 지수가 배리어 이하인 행은 낙아웃 확정이라 "낙아웃"으로 표기 · 만기 열의 편입비는 만기 1영업일 전, 예상수익률은 만기 정산 기준 · 변동성이 변할 경우 예상 편입비·수익률은 달라질 수 있습니다.</div>
+  </div>`;
 }
 
 /* 제안서용 산점도 렌더 (합성 = 선택 전략의 동적헤지 수익률 합)
@@ -989,6 +1070,7 @@ function refreshAnalytic(){
   if(w.some(x=>x.includes('만기')||x.includes('변동성')||x.includes('K')||x.includes('배리어')||x.includes('스프레드'))){return;}
   const strats=buildStrategies(P);
   renderAnalytic(P,strats);
+  renderWeightTable(P,strats);
 }
 function syncStrategyUI(){
   document.getElementById('drift-fld').style.display=document.getElementById('mc-drift').value==='custom'?'':'none';
@@ -1004,6 +1086,7 @@ function runAll(){
     if(w.some(x=>x.includes('만기')||x.includes('변동성')||x.includes('낮')||x.includes('K₁')||x.includes('하나')))return;}
   const strats=buildStrategies(P);
   renderAnalytic(P,strats);
+  renderWeightTable(P,strats);
   const st=document.getElementById('status');
   st.innerHTML='몬테카를로 실행 중… <b>0%</b>';
   document.getElementById('mc-body').innerHTML='<div class="empty">시뮬레이션 계산 중…</div>';
@@ -1030,7 +1113,7 @@ function resetDefaults(){
 }
 
 // 이벤트 바인딩
-['S0','Tm','vol','rate','div','notional','put-strike','put-weight','ko-strike','ko-barrier','ko-rebate','ko-weight','spr-k1','spr-k2','spr-weight']
+['S0','Tm','vol','rate','div','notional','put-strike','put-weight','ko-strike','ko-barrier','ko-rebate','ko-weight','spr-k1','spr-k2','spr-weight','mc-maxw']
   .forEach(id=>document.getElementById(id).addEventListener('input',refreshAnalytic));
 ['spr-type','mc-drift'].forEach(id=>document.getElementById(id).addEventListener('change',refreshAnalytic));
 ['on-put','on-ko','on-spr'].forEach(id=>document.getElementById(id).addEventListener('change',refreshAnalytic));
