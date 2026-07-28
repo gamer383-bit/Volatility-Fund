@@ -84,11 +84,11 @@ def run(target_on):
     out={}
     for kind in ('g','s'):
         a0=i0-1                              # 앵커: 2026-04-24 종가 (노출은 4/27부터)
-        mat=dts[a0]+pd.Timedelta(days=365)
-        i_mat=int(np.searchsorted(dts,mat,side='right'))-1
+        mat=dts[a0]+pd.Timedelta(days=365)   # 만기는 달력 1년 (데이터 범위와 무관)
         S=100.; V=1.; alive=True
         sig=max(float(vol60.iloc[a0]),0.05)
-        w=(w_growth(S,(i_mat-a0)/252,sig,True) if kind=='g' else w_stable(S,(i_mat-a0)/252,sig))
+        tau0=(mat-dts[a0]).days/365.0
+        w=(w_growth(S,tau0,sig,True) if kind=='g' else w_stable(S,tau0,sig))
         V*=1.0-TCB*w                         # 최초 매수
         turnV0=V
         pV=[100.]; pw=[w]; restarts=[]
@@ -102,12 +102,11 @@ def run(target_on):
                 # 재세팅일 종가: 기준가=오늘 종가, 만기 1년, 배리어 리셋, 재매수
                 S=100.; alive=True
                 mat=dts[j]+pd.Timedelta(days=365)
-                i_mat=int(np.searchsorted(dts,mat,side='right'))-1
-                nw=(w_growth(S,(i_mat-j)/252,sig,True) if kind=='g' else w_stable(S,(i_mat-j)/252,sig))
+                nw=(w_growth(S,1.0,sig,True) if kind=='g' else w_stable(S,1.0,sig))
                 V*=1.0-TCB*nw
                 w=nw; turnV0=V; pending=False
             else:
-                tau=max((i_mat-j)/252,1e-8)
+                tau=max((mat-dts[j]).days/365.0,1e-8)
                 nw=(w_growth(S,tau,sig,alive) if kind=='g' else w_stable(S,tau,sig))
                 V*=1.0-(TCB if nw>w else TCS)*abs(nw-w)
                 w=nw

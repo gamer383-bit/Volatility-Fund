@@ -101,7 +101,8 @@ def simulate(kind):
         if n<=0: break
         S=100.0; alive=True; touch=None; reason='만기'
         sig=max(float(vol60.iloc[a]),0.05)
-        w=(w_growth(S,n/252,sig,True) if kind=='g' else w_stable(S,n/252,sig))
+        tau0=(mat-dts[a]).days/365.0         # 잔존만기는 달력 기준(데이터 끝에 잘리지 않음)
+        w=(w_growth(S,tau0,sig,True) if kind=='g' else w_stable(S,tau0,sig))
         V_cont*=1.0-TCB*w                    # 앵커일 종가 재매수 비용
         turnV0=V_cont
         pS=[S]; pV=[100.0]; pw=[w]
@@ -111,7 +112,7 @@ def simulate(kind):
             V_cont*=1.0+w*(r0+qday)+(1.0-w)*rday
             S*=1.0+r0
             if kind=='g' and alive and S<=H: alive=False; touch=dts[j]
-            tau=max((i_mat-j)/252,1e-8)
+            tau=max((mat-dts[j]).days/365.0,1e-8)
             sig=max(float(vol60.iloc[j]),0.05)
             nw=(w_growth(S,tau,sig,alive) if kind=='g' else w_stable(S,tau,sig))
             V_cont*=1.0-(TCB if nw>w else TCS)*abs(nw-w)
