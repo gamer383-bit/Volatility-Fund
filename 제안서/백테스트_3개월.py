@@ -20,7 +20,7 @@ IMG=os.path.join(BASE,'img')
 XLS=os.path.join(os.path.dirname(BASE),'data','삼성전자_하이닉스_코스피_코스피200_코스닥150_최근5년_주가데이터.xlsx')
 R,Q=0.025,0.025; TCB,TCS=0.0005,0.0030
 KPUT,KKO,H,K1,K2=100.,100.,60.,110.,140.
-START='2026-04-29'; SIGCAP=0.60   # 최근 3개월: 앵커 4/28 종가, 노출 4/29부터 (사용자 지정)
+START='2026-04-29'; SIGCAP=0.60; WMIN=0.10   # 최근 3개월(앵커 4/28 종가) · 최저 편입비 10%
 
 def load_top2():
     """엑셀 D열(지수생성_top2.py로 생성한 삼성·하이닉스 50:50 일별리밸 지수)"""
@@ -61,9 +61,9 @@ def ko_d(S,K,Hb,T,sig):
 def w_growth(S,tau,sig,alive):
     d=-bs_d('p',S,KPUT,tau,sig)+(ko_d(S,KKO,H,tau,sig) if alive else 0.0) \
       +bs_d('c',S,K1,tau,sig)-bs_d('c',S,K2,tau,sig)
-    return min(max(d,0.0),1.8)
+    return min(max(d,WMIN),1.8)          # 편입비 [최저 10%, 180%]
 def w_stable(S,tau,sig):
-    return min(max(-bs_d('p',S,KPUT,tau,sig),0.0)*1.10,1.0)
+    return min(max(-bs_d('p',S,KPUT,tau,sig)*1.10,WMIN),1.0)   # 편입비 [최저 10%, 100%]
 
 i0=int(np.searchsorted(dts,pd.Timestamp(START)))
 i_end=len(dts)-1
