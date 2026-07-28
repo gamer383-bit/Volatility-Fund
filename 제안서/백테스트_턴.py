@@ -184,59 +184,83 @@ def draw_table(kind,fname,prod_label):
 draw_table('g','qpms_table_g.png','상품1(성장형)')
 draw_table('s','qpms_table_s.png','상품2(안정형)')
 
-# ---- 예시 그래프: 하락/상승 1년 윈도우 (재운용 포함 연속 성과, 사용자 규칙 10) ----
+# ---- 예시 그래프: 하락/상승/보합 1년 구간을 '신규 설정'해서 운용 (사용자 규칙) ----
+# 1) 기초지수 1년(달력) 수익률 기준으로 하락(최저)·상승(최고)·보합(|수익률| 최소) 구간 선정
+# 2) 각 구간 시작일 종가를 기준가 100으로 신규 설정 → 18페이지와 동일 규칙으로 운용
+#    (+15% 달성 시 당일 종가 청산 후 같은 종가로 만기 1년 재세팅·재운용)
 import matplotlib.dates as mdates
-a0=int(np.searchsorted(dts,pd.Timestamp(START)))
-def year_windows():
-    """기초지수 1년(달력) 수익률이 최저/최고인 윈도우 시작일 탐색 (시작≥최초 앵커)"""
-    best=(None,-np.inf); worst=(None,np.inf)
-    for i in range(a0,len(dts)):
+px=(1.0+ret).cumprod()                      # dts 기준 누적 지수 (앵커 종가 비교용)
+
+def pick_windows():
+    worst=(None,np.inf); best=(None,-np.inf); flat=(None,np.inf)
+    for i in range(len(dts)):
         t1=dts[i]+pd.Timedelta(days=365)
         if t1>dts[-1]: break
         j=int(np.searchsorted(dts,t1,side='right'))-1
-        r1=float(top2.iloc[j]/top2.iloc[i]-1)
-        if r1>best[1]: best=(dts[i],r1)
-        if r1<worst[1]: worst=(dts[i],r1)
-    return worst[0],best[0]
+        r1=float(px.iloc[j]/px.iloc[i]-1)
+        if r1<worst[1]: worst=(i,r1)
+        if r1>best[1]:  best=(i,r1)
+        if abs(r1)<abs(flat[1]): flat=(i,r1)
+    return worst,best,flat
 
-def draw_year(kind,color,t0,label,fname):
-    G=gseries[kind]
-    gd=pd.DatetimeIndex(G['d']); gV=np.array(G['V']); gw=np.array(G['w'])
-    t1=t0+pd.Timedelta(days=365)
-    m=(gd>=t0)&(gd<=t1)
-    d=gd[m]; V=gV[m]/gV[m][0]*100; w=gw[m]*100
-    base=top2[(top2.index>=t0)&(top2.index<=t1)]
-    base=base/base.iloc[0]*100
-    fig,ax=plt.subplots(figsize=(7.4,3.16),dpi=150)
+def run_window(kind,ia):
+    """구간 신규 설정 운용: 기준가=dts[ia] 종가(=100), 노출 ia+1 ~ 앵커+365일.
+    +15% 달성 시 당일 종가 전량 청산(30bp) 후 같은 종가로 만기 1년 재세팅(5bp)."""
+    rday=R/252
+    ie=int(np.searchsorted(dts,dts[ia]+pd.Timedelta(days=365),side='right'))-1
+    S=100.; V=1.; alive=True; Sb=100.
+    sig=max(float(vol60.iloc[ia]),0.05)
+    mat=dts[ia]+pd.Timedelta(days=365)
+    w=(w_growth(S,1.0,sig,True) if kind=='g' else w_stable(S,1.0,sig))
+    V*=1.0-TCB*w; turnV0=V
+    dates=[dts[ia]]; pV=[100.]; pw=[w]; base=[100.]; restarts=[]
+    for j in range(ia+1,ie+1):
+        r0=float(ret.iloc[j]); sig=max(float(vol60.iloc[j]),0.05)
+        V*=1.0+w*r0+(1.0-w)*rday
+        S*=1.0+r0; Sb*=1.0+r0
+        if kind=='g' and alive and S<=H: alive=False
+        if V/turnV0>=1.0+TARGET and j<ie:
+            restarts.append(dts[j]); V*=1.0-TCS*w
+            S=100.; alive=True; mat=dts[j]+pd.Timedelta(days=365)
+            nw=(w_growth(S,1.0,sig,True) if kind=='g' else w_stable(S,1.0,sig))
+            V*=1.0-TCB*nw; w=nw; turnV0=V
+        else:
+            tau=max((mat-dts[j]).days/365.0,1e-8)
+            nw=(w_growth(S,tau,sig,alive) if kind=='g' else w_stable(S,tau,sig))
+            V*=1.0-(TCB if nw>w else TCS)*abs(nw-w); w=nw
+        dates.append(dts[j]); pV.append(V*100); pw.append(w); base.append(Sb)
+    return pd.to_datetime(dates),np.array(base),np.array(pV),np.array(pw),restarts
+
+def draw_win(kind,color,ia,label,fname,legend=False):
+    x,base,pV,pw,restarts=run_window(kind,ia)
+    fig,ax=plt.subplots(figsize=(7.4,2.05),dpi=150)
     ax2=ax.twinx()
-    ax2.fill_between(d,w,color=color,alpha=0.12,lw=0)
-    ax2.set_ylim(0,200); ax2.set_yticks([0,50,100,150,200])
-    ax2.set_yticklabels(['0%','','100%','','200%'],fontsize=8,color=GRAY)
-    ax.plot(base.index,base.values,color=SKY,lw=1.6,label='기초지수(시작=100)')
-    ax.plot(d,V,color=color,lw=2.0,label='펀드 NAV(재운용 연속)')
+    ax2.fill_between(x,pw*100,color=color,alpha=0.13,lw=0)
+    ax2.set_ylim(0,200); ax2.set_yticks([0,100,200])
+    ax2.set_yticklabels(['0%','100%','200%'],fontsize=7.5,color=GRAY)
+    ax.plot(x,base,color=SKY,lw=1.5,label='기초지수(시작=100)')
+    ax.plot(x,pV,color=color,lw=1.9,label='펀드 NAV')
     ax.axhline(100,color='#c9d5e2',lw=0.8)
-    hits=[dt for dt,rs in G['ev'] if rs=='목표달성' and t0<dt<=t1]
-    for hd in hits:
-        ax.axvline(hd,color='#c05000',ls=':',lw=1.0,alpha=0.8)
-        hv=float(V[d.searchsorted(hd)]) if d.searchsorted(hd)<len(V) else None
-        if hv is not None:
-            ax.plot([hd],[hv],marker='*',ms=11,color='#c05000',mec='white',mew=0.7,zorder=6)
-    b1=float(base.iloc[-1]-100); f1=float(V[-1]-100)
-    ax.set_title(f"{label} 1년 ({t0.date()} ~ {min(t1,dts[-1]).date()})  기초 {b1:+.1f}% / 펀드 {f1:+.1f}%"
-                 +(f"  ·  +15% 달성 {len(hits)}회" if hits else ""),
-                 fontsize=9.5,color=NAVY,fontweight='bold',loc='left')
-    ax.legend(fontsize=8.5,frameon=False,loc='upper left')
+    for rd in restarts:
+        ax.axvline(rd,color='#c05000',ls=':',lw=0.9,alpha=0.8)
+        k=int(x.searchsorted(rd))
+        if k<len(pV): ax.plot([rd],[pV[k]],marker='*',ms=9,color='#c05000',mec='white',mew=0.6,zorder=6)
+    b1=float(base[-1]-100); f1=float(pV[-1]-100)
+    ax.set_title(f"{label} ({x[0].strftime('%y.%m.%d')}~{x[-1].strftime('%y.%m.%d')} 신규 설정)  "
+                 f"기초 {b1:+.1f}% / 펀드 {f1:+.1f}%"+(f" · 달성 {len(restarts)}회" if restarts else ""),
+                 fontsize=10,color=NAVY,fontweight='bold',loc='left')
+    if legend: ax.legend(fontsize=8,frameon=False,loc='best')
     ax.grid(alpha=0.2); ax.spines[['top']].set_visible(False)
-    ax.tick_params(labelsize=9)
+    ax.tick_params(labelsize=8.5)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%y.%m'))
-    fig.text(0.99,0.01,'음영=편입비(우축) · ★=+15% 달성(당일 종가 청산 후 재운용)',ha='right',color=GRAY,fontsize=8)
-    fig.tight_layout()
+    fig.tight_layout(pad=0.5)
     fig.savefig(os.path.join(IMG,fname),bbox_inches='tight'); plt.close(fig)
-    print("saved",fname,f"기초 {b1:+.1f}% 펀드 {f1:+.1f}% 달성 {len(hits)}회")
+    print("saved",fname,f"기초 {b1:+.1f}% 펀드 {f1:+.1f}% 달성 {len(restarts)}회")
 
-t_down,t_up=year_windows()
-print(f"\n하락 1년 윈도우 시작 {t_down.date()} · 상승 1년 윈도우 시작 {t_up.date()}")
+(wd_i,wd_r),(up_i,up_r),(fl_i,fl_r)=pick_windows()
+print(f"\n구간 선정(1년): 하락 {dts[wd_i].date()} ({wd_r*100:+.1f}%) · 상승 {dts[up_i].date()} ({up_r*100:+.1f}%) · 보합 {dts[fl_i].date()} ({fl_r*100:+.1f}%)")
 for kind,color in (('g',ORANGE),('s',NAVY)):
-    draw_year(kind,color,t_down,'하락기 예시',f'qpms_down_{kind}.png')
-    draw_year(kind,color,t_up,  '상승기 예시',f'qpms_up_{kind}.png')
+    draw_win(kind,color,wd_i,'하락 1년',f'qpms_down_{kind}.png',legend=True)
+    draw_win(kind,color,up_i,'상승 1년',f'qpms_up_{kind}.png')
+    draw_win(kind,color,fl_i,'보합 1년',f'qpms_flat_{kind}.png')
 print("done")
