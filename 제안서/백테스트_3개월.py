@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""최근 3개월 급변동 구간 실측 (18페이지용) — 성장/안정 동시, 15% 환매 없음
+"""최근 3개월 급변동 구간 실측 (18페이지용) — 좌: 목표 환매 없음 / 우: +15% 재운용
 - 기간: 2026-04-27 이후 첫 영업일 ~ 2026-07-27 (기준가=시작일 100, 만기 1년 지평)
 - σ=직전 60영업일(주말 제외) 연율화 · r=q=2.5% · 매수 5bp/매도 30bp · 실거래일만
-- 상단: 기초지수 vs 성장형·안정형 NAV / 하단: 두 전략 편입비
+- 상단: 기초지수 vs 성장형·안정형 NAV / 하단: 두 전략 편입비(막대)
 """
 import os, platform, sys, io, math
 sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
@@ -74,62 +74,101 @@ def w_stable(S,tau,sig):
     return min(max(-bs_d('p',S,KPUT,tau,sig),0.0)*1.10,1.0)
 
 i0=int(np.searchsorted(dts,pd.Timestamp(START)))
-mat=dts[i0]+pd.Timedelta(days=365)
-i_mat=int(np.searchsorted(dts,mat,side='right'))-1
 i_end=len(dts)-1
-n=i_mat-i0+1
 rday=R/252; qday=Q/252
-state={}
-for kind in ('g','s'):
-    sig=max(float(vol60.iloc[i0-1]),0.05)
-    w=(w_growth(100.,n/252,sig,True) if kind=='g' else w_stable(100.,n/252,sig))
-    state[kind]=dict(S=100.,V=1.,w=w,alive=True,pS=[100.],pV=[100.],pw=[w])
-dates=[dts[i0-1]]
-for j in range(i0,i_end+1):
-    r0=float(ret.iloc[j]); sig=max(float(vol60.iloc[j]),0.05)
-    tau=max((i_mat-j)/252,1e-8)
-    for kind in ('g','s'):
-        st=state[kind]
-        st['V']*=1.0+st['w']*(r0+qday)+(1.0-st['w'])*rday
-        st['S']*=1.0+r0
-        if kind=='g' and st['alive'] and st['S']<=H: st['alive']=False
-        nw=(w_growth(st['S'],tau,sig,st['alive']) if kind=='g' else w_stable(st['S'],tau,sig))
-        cost=(TCB if nw>st['w'] else TCS)*abs(nw-st['w'])
-        st['V']-=cost*st['V']; st['w']=nw
-        st['pS'].append(st['S']); st['pV'].append(st['V']*100); st['pw'].append(st['w'])
-    dates.append(dts[j])
-g,s=state['g'],state['s']
-print(f"기간 {dates[0].date()}~{dates[-1].date()} ({len(dates)-1}영업일)")
-print(f"기초 {g['S']-100:+.1f}% · 성장형 {g['pV'][-1]-100:+.1f}% · 안정형 {s['pV'][-1]-100:+.1f}%")
-print(f"기간 중 기초 최고 {max(g['pS'])-100:+.1f}% / 최저 {min(g['pS'])-100:+.1f}% · σ(60일) {vol60.iloc[i0]*100:.0f}→{vol60.iloc[i_end]*100:.0f}%")
+TARGET=0.15
 
-x=dates
-fig,(ax1,ax2)=plt.subplots(2,1,figsize=(9.4,5.6),dpi=130,height_ratios=[1.55,1],sharex=True)
-ax1.plot(x,g['pS'],color=SKY,lw=1.9,label='기초지수 (Top2 동일가중, 시작=100)')
-ax1.plot(x,g['pV'],color=ORANGE,lw=2.2,label='성장변동성펀드 NAV')
-ax1.plot(x,s['pV'],color=NAVY,lw=2.2,label='안정변동성펀드 NAV')
-ax1.axhline(100,color='#c9d5e2',lw=0.9)
-labs=sorted([(g['pS'][-1],SKY),(g['pV'][-1],ORANGE),(s['pV'][-1],NAVY)],key=lambda t:-t[0])
-yoff=[]
-for v,col in labs:                                  # 겹침 방지: 최소 7pt 간격 확보
-    yy=v
-    while any(abs(yy-o)<7 for o in yoff): yy-=7
-    yoff.append(yy)
-    ax1.annotate(f"{v-100:+.1f}%",xy=(x[-1],yy),xytext=(6,0),textcoords='offset points',
-                 color=col,fontsize=11,fontweight='bold',va='center')
-ax1.set_xlim(x[0],x[-1]+pd.Timedelta(days=6))
-ax1.set_ylabel('수익률 (시작=100)',color=NAVY,fontsize=11)
-ax1.legend(fontsize=9.5,frameon=False,loc='upper left')
-ax1.grid(alpha=0.22); ax1.spines[['top','right']].set_visible(False)
-ax2.plot(x,np.array(g['pw'])*100,color=ORANGE,lw=1.9,label='성장형 편입비')
-ax2.plot(x,np.array(s['pw'])*100,color=NAVY,lw=1.9,label='안정형 편입비')
-for yv in (50,100,150): ax2.axhline(yv,color='#e8edf2',lw=0.8,ls=':' if yv!=100 else '--')
-ax2.set_ylim(0,190); ax2.set_ylabel('편입비 (%)',color=NAVY,fontsize=10.5)
-ax2.legend(fontsize=9.5,frameon=False,loc='upper left')
-ax2.grid(alpha=0.22); ax2.spines[['top','right']].set_visible(False)
-ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
-fig.text(0.99,0.01,f"기간 {dates[0].strftime('%Y-%m-%d')}~{dates[-1].strftime('%Y-%m-%d')} · 기준가=시작일(만기 1년 지평) · 15% 환매 없음 · σ=직전 60영업일 연율화 · r=q 2.5% · 매수5bp/매도30bp",
-         ha='right',color=GRAY,fontsize=7.6)
-fig.tight_layout(rect=[0,0.03,1,1])
-fig.savefig(os.path.join(IMG,'qpms_3m.png'),bbox_inches='tight'); plt.close(fig)
-print("saved qpms_3m.png")
+def run(target_on):
+    """3개월 구간 시뮬. target_on=True면 턴 내 +15% 도달 시 다음날 재운용(기준가·만기 재설정).
+    반환: dates, base(연속), 전략별 V(연속)·w, 재운용일 리스트"""
+    out={}
+    for kind in ('g','s'):
+        S=100.; V=1.; alive=True
+        turnV=1.0                       # 턴 내 누적(목표 판정용)
+        t_start=i0; mat=dts[t_start]+pd.Timedelta(days=365)
+        i_mat=int(np.searchsorted(dts,mat,side='right'))-1
+        pV=[100.]; pw=[]; restarts=[]
+        sig=max(float(vol60.iloc[i0-1]),0.05)
+        w=(w_growth(100.,(i_mat-i0+1)/252,sig,True) if kind=='g' else w_stable(100.,(i_mat-i0+1)/252,sig))
+        pw.append(w)
+        for j in range(i0,i_end+1):
+            r0=float(ret.iloc[j]); sig=max(float(vol60.iloc[j]),0.05)
+            g_=1.0+w*(r0+qday)+(1.0-w)*rday
+            V*=g_; turnV*=g_
+            S*=1.0+r0
+            if kind=='g' and alive and S<=H: alive=False
+            hit=target_on and turnV>=1.0+TARGET
+            if hit and j<i_end:
+                # 재운용: 다음 영업일부터 새 턴 (기준가=현재, 만기 1년, 배리어 리셋)
+                restarts.append(dts[j])
+                S=100.; alive=True; turnV=1.0
+                t_start=j+1; mat=dts[min(t_start,i_end)]+pd.Timedelta(days=365)
+                i_mat=int(np.searchsorted(dts,mat,side='right'))-1
+            tau=max((i_mat-j)/252,1e-8)
+            cost_base=w
+            nw=(w_growth(S,tau,sig,alive) if kind=='g' else w_stable(S,tau,sig))
+            cost=(TCB if nw>w else TCS)*abs(nw-w)
+            V-=cost*V; turnV*=(1-cost); w=nw
+            pV.append(V*100); pw.append(w)
+        out[kind]=dict(pV=np.array(pV),pw=np.array(pw[:-1]),restarts=restarts)
+    base=[100.]
+    for j in range(i0,i_end+1): base.append(base[-1]*(1+float(ret.iloc[j])))
+    dates=[dts[i0-1]]+list(dts[i0:i_end+1])
+    return dates,np.array(base),out
+
+def draw(dates,base,out,title,fname,show_restart):
+    x=pd.to_datetime(dates)
+    g,s=out['g'],out['s']
+    fig,(ax1,ax2)=plt.subplots(2,1,figsize=(6.3,5.85),dpi=135,height_ratios=[1.5,1],sharex=True)
+    ax1.plot(x,base,color=SKY,lw=1.8,label='기초지수(시작=100)')
+    ax1.plot(x,g['pV'],color=ORANGE,lw=2.1,label='성장변동성펀드')
+    ax1.plot(x,s['pV'],color=NAVY,lw=2.1,label='안정변동성펀드')
+    ax1.axhline(100,color='#c9d5e2',lw=0.9)
+    if show_restart:
+        for kind,col in (('g',ORANGE),('s',NAVY)):
+            for rd in out[kind]['restarts']:
+                ax1.axvline(rd,color=col,ls=':',lw=1.1,alpha=0.75)
+    labs=sorted([(base[-1],SKY),(g['pV'][-1],ORANGE),(s['pV'][-1],NAVY)],key=lambda t:-t[0])
+    yoff=[]
+    for v,col in labs:
+        yy=v
+        while any(abs(yy-o)<9 for o in yoff): yy-=9
+        yoff.append(yy)
+        ax1.annotate(f"{v-100:+.1f}%",xy=(x[-1],yy),xytext=(4,0),textcoords='offset points',
+                     color=col,fontsize=10,fontweight='bold',va='center')
+    ax1.set_xlim(x[0],x[-1]+pd.Timedelta(days=8))
+    ax1.set_title(title,fontsize=12,color=NAVY,fontweight='bold',loc='left')
+    ax1.set_ylabel('수익률 (시작=100)',color=NAVY,fontsize=10)
+    ax1.legend(fontsize=8.3,frameon=False,loc='upper left')
+    ax1.grid(alpha=0.22); ax1.spines[['top','right']].set_visible(False)
+    ax1.tick_params(labelsize=8.5)
+    # 편입비 막대 (그룹)
+    xg=pd.to_datetime(dates)
+    off=pd.Timedelta(hours=9)
+    ax2.bar(xg-off,g['pw']*100 if len(g['pw'])==len(xg) else np.append(g['pw'],g['pw'][-1])*100,
+            width=0.34,color=ORANGE,alpha=0.85,label='성장형 편입비')
+    ax2.bar(xg+off,s['pw']*100 if len(s['pw'])==len(xg) else np.append(s['pw'],s['pw'][-1])*100,
+            width=0.34,color=NAVY,alpha=0.85,label='안정형 편입비')
+    for yv in (50,100,150): ax2.axhline(yv,color='#e8edf2',lw=0.8,ls='--' if yv==100 else ':')
+    if show_restart:
+        for kind,col in (('g',ORANGE),('s',NAVY)):
+            for rd in out[kind]['restarts']:
+                ax2.axvline(rd,color=col,ls=':',lw=1.1,alpha=0.75)
+    ax2.set_ylim(0,190); ax2.set_ylabel('편입비 (%)',color=NAVY,fontsize=9.5)
+    ax2.legend(fontsize=8.3,frameon=False,loc='upper left')
+    ax2.grid(alpha=0.2,axis='y'); ax2.spines[['top','right']].set_visible(False)
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
+    ax2.tick_params(labelsize=8.5)
+    note='점선(수직)=목표 +15% 달성 후 재운용 시점' if show_restart else ''
+    fig.text(0.99,0.01,note,ha='right',color=GRAY,fontsize=7.5)
+    fig.tight_layout(rect=[0,0.02,1,1])
+    fig.savefig(os.path.join(IMG,fname),bbox_inches='tight'); plt.close(fig)
+    print("saved",fname)
+
+dates,base,out0=run(False)
+print(f"[환매없음] 기초 {base[-1]-100:+.1f}% · 성장 {out0['g']['pV'][-1]-100:+.1f}% · 안정 {out0['s']['pV'][-1]-100:+.1f}%")
+draw(dates,base,out0,'① 목표 환매 없음 (계속 운용)','qpms_3m.png',False)
+dates,base,out1=run(True)
+rg=[d.strftime('%m/%d') for d in out1['g']['restarts']]; rs=[d.strftime('%m/%d') for d in out1['s']['restarts']]
+print(f"[+15% 재운용] 기초 {base[-1]-100:+.1f}% · 성장 {out1['g']['pV'][-1]-100:+.1f}% (재운용 {rg}) · 안정 {out1['s']['pV'][-1]-100:+.1f}% (재운용 {rs})")
+draw(dates,base,out1,'② 목표 +15% 달성 시 재운용','qpms_3m_re.png',True)
