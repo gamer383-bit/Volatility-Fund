@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """수익구조② 안정변동성펀드 scatter (v2 제안서 13페이지용)
-- ATM 풋매도 복제(복제비율 110%), KO 없음 → 단일 분포
+- ATM 풋매도 복제(참여율 110%, 최대 편입비 100% 제한), KO 없음 → 단일 분포
 - σ60% · r=2.5% · q=2.5% · T=1년 · 매매비용 매수 5bp/매도 30bp · 일별 동적헤지 MC
 - X=기초자산 등락률 −40~+40%, Y=구조화 수익 −20~+30%, 10% 눈금·등간격(equal aspect)
 """
@@ -28,7 +28,7 @@ days=252; dt=T/days
 rng=np.random.default_rng(20260727)
 S=np.full(nP,100.0)
 P0=float(bs_put(np.array([100.0]),K,T)[0])
-h=-put_delta(S,T)*W                   # 숏풋 헤지 편입비 (복제비율 110%)
+h=np.minimum(-put_delta(S,T)*W,1.0)   # 헤지 편입비 = min(참여율 110%×델타, 100%)
 cash=(-P0*W)-h*100.0
 tc=np.zeros(nP)
 drift=(R-Q)-0.5*SIG*SIG; vol=SIG*np.sqrt(dt)
@@ -36,7 +36,7 @@ for step in range(1,days+1):
     S=S*np.exp(drift*dt+vol*rng.standard_normal(nP))
     tau=max(T-step*dt,1e-8)
     cash=cash*np.exp(R*dt)+h*S*Q*dt
-    nh=-put_delta(S,tau)*W; d=nh-h
+    nh=np.minimum(-put_delta(S,tau)*W,1.0); d=nh-h
     cost=np.where(d>0,TCB,TCS)*np.abs(d)*S
     cash-=d*S+cost; tc+=cost; h=nh
 port=h*S+cash
