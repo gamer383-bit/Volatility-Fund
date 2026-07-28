@@ -126,8 +126,13 @@ def draw(dates,base,out,title,fname,show_restart):
     ax1.axhline(100,color='#c9d5e2',lw=0.9)
     if show_restart:
         for kind,col in (('g',ORANGE),('s',NAVY)):
-            for rd in out[kind]['restarts']:
+            pv=out[kind]['pV']
+            for k,rd in enumerate(out[kind]['restarts'],1):
                 ax1.axvline(rd,color=col,ls=':',lw=1.1,alpha=0.75)
+                di=dates.index(rd); yv=pv[di]
+                ax1.plot([rd],[yv],marker='*',ms=13,color=col,mec='white',mew=0.8,zorder=6)
+                ax1.annotate(f"+15% 달성({rd.strftime('%m/%d')})",xy=(rd,yv),xytext=(-4,12),
+                             textcoords='offset points',color=col,fontsize=7.8,fontweight='bold',ha='right')
     labs=sorted([(base[-1],SKY),(g['pV'][-1],ORANGE),(s['pV'][-1],NAVY)],key=lambda t:-t[0])
     yoff=[]
     for v,col in labs:
