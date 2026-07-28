@@ -128,12 +128,14 @@ def draw(dates,base,out,title,fname,show_restart):
                 ax1.plot([rd],[yv],marker='*',ms=13,color=col,mec='white',mew=0.8,zorder=6)
                 ax1.annotate(f"+15% 달성({rd.strftime('%m/%d')})",xy=(rd,yv),xytext=(-4,12),
                              textcoords='offset points',color=col,fontsize=7.8,fontweight='bold',ha='right')
+    # 우측 종점 라벨: 각 선의 실제 종점 높이에 표기, 겹칠 때만 최소 간격으로 하향 조정
     labs=sorted([(base[-1],SKY),(g['pV'][-1],ORANGE),(s['pV'][-1],NAVY)],key=lambda t:-t[0])
-    yoff=[]
+    lo=min(base.min(),g['pV'].min(),s['pV'].min()); hi=max(base.max(),g['pV'].max(),s['pV'].max())
+    gap=(hi-lo)*0.055
+    prev=None
     for v,col in labs:
-        yy=v
-        while any(abs(yy-o)<9 for o in yoff): yy-=9
-        yoff.append(yy)
+        yy=v if prev is None else min(v,prev-gap)
+        prev=yy
         ax1.annotate(f"{v-100:+.1f}%",xy=(x[-1],yy),xytext=(4,0),textcoords='offset points',
                      color=col,fontsize=10,fontweight='bold',va='center')
     ax1.set_xlim(x[0],x[-1]+pd.Timedelta(days=8))
