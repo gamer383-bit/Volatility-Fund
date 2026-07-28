@@ -73,49 +73,49 @@ def simulate(kind):
     X=(S/100.0-1.0)*100; Y=(V-1.0)*100
     return X,Y,(~alive if kind=='g' else np.zeros(NP,bool))
 
-def draw(kind,title,fname):
+def draw(kind,title,color,fname):
+    """지수 수익률 분포(회색)와 전략 수익률 분포(색)를 한 그래프에 겹쳐 그린다."""
     X,Y,touched=simulate(kind)
-    med=np.median(Y); mean=Y.mean(); pos=(Y>=0).mean()*100
-    p5,p95=np.percentile(Y,5),np.percentile(Y,95)
-    print(f"[{title}] 평균 {mean:+.1f}% · 중앙값 {med:+.1f}% · 수익확률 {pos:.0f}% · 5~95% [{p5:+.1f}%, {p95:+.1f}%]"
+    medX,medY=np.median(X),np.median(Y)
+    mean=Y.mean(); pos=(Y>=0).mean()*100
+    print(f"[{title}] 전략: 평균 {mean:+.1f}% · 중앙값 {medY:+.1f}% · 수익확률 {pos:.0f}% | 지수 중앙값 {medX:+.1f}%"
           +(f" · 배리어 터치 {touched.mean()*100:.1f}%" if kind=='g' else ""))
-    xlim=(-80,160); ylo=np.floor(np.percentile(Y,0.2)/10)*10; yhi=np.ceil(np.percentile(Y,99.8)/10)*10
+    lo,hi,bw=-80,200,5
+    bins=np.arange(lo,hi+bw,bw)
+    outX=((X<lo)|(X>hi)).mean()*100
     fig,ax=plt.subplots(figsize=(8.97,6.5),dpi=125)
-    m=(X>=xlim[0])&(X<=xlim[1])&(Y>=ylo)&(Y<=yhi)
-    ax.axhline(0,color='#8a97a8',lw=0.9)
-    ax.axvline(0,color='#9aa7b8',ls='--',lw=1)
-    if kind=='g':
-        nt=~touched
-        ax.scatter(X[m&nt],Y[m&nt],s=3.5,color=NAVY,alpha=0.30,linewidths=0,label=f'배리어 미터치 ({nt.mean()*100:.0f}%)')
-        ax.scatter(X[m&touched],Y[m&touched],s=3.5,color=RED,alpha=0.30,linewidths=0,label=f'배리어(-40%) 터치 ({touched.mean()*100:.0f}%)')
-    else:
-        ax.scatter(X[m],Y[m],s=3.5,color=NAVY,alpha=0.28,linewidths=0)
-    # 구간 평균선
-    B=40; edges=np.linspace(xlim[0],xlim[1],B+1); cen=(edges[:-1]+edges[1:])/2
-    bm=np.full(B,np.nan)
-    for b in range(B):
-        sel=(X>=edges[b])&(X<edges[b+1])
-        if sel.sum()>=10: bm[b]=np.clip(Y[sel].mean(),ylo,yhi)
-    ax.plot(cen,bm,color=ORANGE,lw=2.6,label='구간 평균')
-    ax.set_xlim(*xlim); ax.set_ylim(ylo,yhi)
-    ax.set_xticks(range(-80,161,20))
-    ax.set_xticklabels([f'{v:+d}%' if v else '0%' for v in range(-80,161,20)],fontsize=10.5)
-    ax.set_yticks(np.arange(ylo,yhi+1,10))
-    ax.set_yticklabels([f'{v:+.0f}%' if v else '0%' for v in np.arange(ylo,yhi+1,10)],fontsize=10.5)
-    ax.set_xlabel('만기 지수수익률 (설정일 대비)',fontsize=12,color=NAVY)
-    ax.set_ylabel('전략 수익률 (%)',fontsize=12,color=NAVY)
-    ax.set_title(f"{title} : 수익률 확률분포 (몬테카를로 1만회 · σ 60%)",
-                 fontsize=14.5,color=NAVY,fontweight='bold',loc='left',pad=10)
-    ax.text(0.985,0.03,f"평균 {mean:+.1f}% · 중앙값 {med:+.1f}% · 수익확률 {pos:.0f}%",
-            transform=ax.transAxes,ha='right',va='bottom',fontsize=11,color=ORANGE,fontweight='bold',
-            bbox=dict(boxstyle='round,pad=0.35',fc='white',ec=ORANGE,lw=0.8,alpha=0.9))
-    ax.grid(alpha=0.25)
+    ax.hist(np.clip(X,lo,hi),bins=bins,weights=np.full(NP,100.0/NP),
+            color='#9db4cc',alpha=0.55,label='지수 수익률 분포',edgecolor='white',linewidth=0.3)
+    ax.hist(np.clip(Y,lo,hi),bins=bins,weights=np.full(NP,100.0/NP),
+            color=color,alpha=0.60,label=f'{title} 수익률 분포',edgecolor='white',linewidth=0.3)
+    ax.axvline(0,color='#8a97a8',lw=0.9)
+    ax.axvline(medX,color='#5c738c',ls='--',lw=1.6)
+    ax.axvline(medY,color=color,ls='-',lw=2.0)
+    ytop=ax.get_ylim()[1]
+    ax.text(medX,ytop*0.985,f'지수 중앙값 {medX:+.0f}%',color='#5c738c',fontsize=10.5,
+            ha='right',va='top',rotation=0,fontweight='bold')
+    ax.text(medY,ytop*0.92,f'전략 중앙값 {medY:+.0f}%',color=color,fontsize=10.5,
+            ha='left',va='top',fontweight='bold')
+    ax.set_xlim(lo,hi)
+    ax.set_xticks(range(lo,hi+1,20))
+    ax.set_xticklabels([f'{v:+d}%' if v else '0%' for v in range(lo,hi+1,20)],fontsize=10)
+    ax.set_xlabel('만기 수익률 (설정일 대비, 1년)',fontsize=12,color=NAVY)
+    ax.set_ylabel('경로 비중 (%)',fontsize=12,color=NAVY)
+    ax.set_title(f"{title} : 수익률 확률분포 — 지수 vs 전략 (몬테카를로 1만회 · σ 60%)",
+                 fontsize=14,color=NAVY,fontweight='bold',loc='left',pad=10)
+    ax.text(0.985,0.66,f"전략: 평균 {mean:+.1f}% · 중앙값 {medY:+.1f}% · 수익확률 {pos:.0f}%",
+            transform=ax.transAxes,ha='right',va='top',fontsize=11,color=color,fontweight='bold',
+            bbox=dict(boxstyle='round,pad=0.35',fc='white',ec=color,lw=0.8,alpha=0.9))
+    if outX>0.05:
+        ax.text(0.985,0.02,f"※ 표시범위(+200%) 초과 지수 경로 {outX:.1f}%는 우측 끝에 합산",
+                transform=ax.transAxes,ha='right',va='bottom',fontsize=8.5,color=GRAY)
+    ax.grid(alpha=0.25,axis='y')
     ax.spines[['top','right']].set_visible(False)
-    ax.legend(fontsize=9.5,frameon=False,loc='upper left')
+    ax.legend(fontsize=10.5,frameon=False,loc='upper right',bbox_to_anchor=(0.99,0.80))
     fig.tight_layout()
     fig.savefig(os.path.join(IMG,fname),bbox_inches='tight'); plt.close(fig)
     print("saved",fname)
 
-draw('g','성장변동성펀드','dist_growth.png')
-draw('s','안정변동성펀드','dist_stable.png')
+draw('g','성장변동성펀드',ORANGE,'dist_growth.png')
+draw('s','안정변동성펀드',NAVY,'dist_stable.png')
 print("done")
