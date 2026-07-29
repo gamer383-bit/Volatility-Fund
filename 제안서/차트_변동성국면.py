@@ -22,10 +22,17 @@ df=pd.read_parquet("C:/Users/gamer38/Documents/Claude/Projects/ETF WEB/ETF_데�
 df=df.dropna(subset=['수정주가(원)'])
 df['날짜']=pd.to_datetime(df['날짜'])
 df['ym']=df['날짜'].dt.to_period('M')
+# 국내 주식형 한정: 채권·금리·현금성 + 해외주식형 + 파생형(레버리지·인버스·선물) + 원자재·통화 제외
 FI=['채권','국고','금리','단기','머니','KOFR','통안','회사채','크레딧','국공채','은행채','전단채','CD','SOFR','달러단기','캐리','TRF','TDF','채혼']
+FOREIGN=['미국','나스닥','S&P','SnP','다우','필라델피아','차이나','중국','항셍','홍콩','일본','니케이','닛케이','TOPIX','토픽스','인도','니프티','베트남','유럽','유로','글로벌','선진','신흥','대만','아시아','세계','인도네시아','멕시코','브라질','테슬라','엔비디아','애플','마이크로소프트','아마존','알파벳','빅테크','FANG','해외','차이나전기차','일본반도체']
+DERIV=['레버리지','인버스','선물','합성']
+CMDTY=['골드','금현물','금선물','은선물','은현물','원유','WTI','천연가스','구리','원자재','팔라듐','니켈','달러','엔화','위안']
+EXCL='|'.join(FI+FOREIGN+DERIV+CMDTY)
 names=df[['종목코드','종목명']].drop_duplicates('종목코드')
-eq=set(names[~names['종목명'].str.contains('|'.join(FI),case=False,na=False)]['종목코드'])
+eq=set(names[~names['종목명'].str.contains(EXCL,case=False,na=False)]['종목코드'])
 d2=df[df['종목코드'].isin(eq)]
+NEQ=d2['종목코드'].nunique()
+print(f"국내 주식형 필터: {names['종목코드'].nunique()} → {NEQ}종목")
 last=d2.sort_values('날짜').groupby(['종목코드','ym'])['수정주가(원)'].last().unstack()
 mret=last.pct_change(axis=1)
 
@@ -35,9 +42,9 @@ mvol=kr.groupby(kr.index.to_period('M')).std()*np.sqrt(252)*100
 mvol=mvol[mvol.index>=pd.Period('2019-01')]
 dvol=mvol.diff()
 thr=dvol.quantile(0.8)
-REG=[('저변동\n(σ<15%)',mvol[mvol<15].index),
-     ('변동성 급등\n(Δσ 상위 20%)',dvol[dvol>=thr].index),
-     ('고변동\n(σ≥30%)',mvol[mvol>=30].index)]
+REG=[('시장 저변동\n(σ<15%)',mvol[mvol<15].index),
+     ('시장 변동성 급등\n(Δσ 상위 20%)',dvol[dvol>=thr].index),
+     ('시장 고변동\n(σ≥30%)',mvol[mvol>=30].index)]
 
 etf_mean=[]; etf_loss=[]
 for lb,ms in REG:
@@ -60,7 +67,7 @@ def draw_card():
     """1페이지 4번째 카드용 세로형 (aspect ≈ 0.83)"""
     x=np.arange(3); wd=0.35
     fig,ax=plt.subplots(figsize=(5.0,6.0),dpi=150)
-    ax.bar(x-wd/2,etf_mean,wd,color=SKY,label='일반 주식형 ETF 평균')
+    ax.bar(x-wd/2,etf_mean,wd,color=SKY,label='일반 국내 주식형 ETF 평균')
     ax.bar(x+wd/2,st_mean,wd,color=ORANGE,label='변동성 하베스트(성장형)')
     ax.axhline(0,color='#666',lw=1.0)
     for xi,(em,el) in enumerate(zip(etf_mean,etf_loss)):
@@ -71,13 +78,13 @@ def draw_card():
     for xi,sm in enumerate(st_mean):
         ax.text(xi+wd/2,sm+0.14,f"{sm:+.1f}%",ha='center',va='bottom',fontsize=14.5,color=ORANGE,fontweight='bold')
     ax.set_xticks(x)
-    ax.set_xticklabels(['저변동\n(σ<15%)','변동성 급등\n(Δσ 상위20%)','고변동\n(σ≥30%)'],fontsize=11.5,color=NAVY)
+    ax.set_xticklabels(['시장 저변동\n(σ<15%)','시장 변동성\n급등','시장 고변동\n(σ≥30%)'],fontsize=11.5,color=NAVY)
     ax.set_ylabel('월평균 수익률 (%)',fontsize=12,color=NAVY)
     ax.set_ylim(-2.6,max(st_mean)+1.5)
     ax.grid(alpha=0.22,axis='y'); ax.spines[['top','right']].set_visible(False)
     ax.tick_params(axis='y',labelsize=10.5)
     ax.legend(fontsize=10.5,frameon=False,loc='upper left')
-    fig.text(0.5,0.012,'주식형 ETF 1,081종목 × 91개월(2019.01~2026.07)\n시장 변동성=KODEX 200 · 데이터: ETF_데이터_pivot',
+    fig.text(0.5,0.012,f'국내 주식형 ETF {NEQ:,}종목 × 91개월(2019.01~2026.07)\n시장 변동성=KOSPI200 월중 연율화 · 데이터: ETF데이터',
              ha='center',color=GRAY,fontsize=8.0)
     fig.tight_layout(rect=[0,0.055,1,1])
     fig.savefig(os.path.join(IMG,'vol_regime_card.png'),bbox_inches='tight'); plt.close(fig)
@@ -86,7 +93,7 @@ draw_card()
 
 x=np.arange(3); wd=0.34
 fig,ax=plt.subplots(figsize=(8.6,4.6),dpi=140)
-b1=ax.bar(x-wd/2,etf_mean,wd,color=SKY,label='일반 주식형 ETF 평균 (1,081종목)')
+b1=ax.bar(x-wd/2,etf_mean,wd,color=SKY,label=f'일반 국내 주식형 ETF 평균 ({NEQ:,}종목)')
 b2=ax.bar(x+wd/2,st_mean,wd,color=ORANGE,label='변동성 하베스트 (성장형 백테스트)')
 ax.axhline(0,color='#666',lw=1.0)
 for xi,(em,el) in enumerate(zip(etf_mean,etf_loss)):
@@ -103,7 +110,7 @@ ax.set_title('시장 변동성 국면별 성과 — 일반 ETF는 부진, 변동
 ax.grid(alpha=0.22,axis='y'); ax.spines[['top','right']].set_visible(False)
 ax.tick_params(axis='y',labelsize=10)
 ax.legend(fontsize=10,frameon=False,loc='upper left')
-fig.text(0.99,0.01,'시장 변동성=KODEX 200 월중 일수익률 연율화(2019.01~2026.07, 91개월) · ETF=채권·금리·현금성 제외 주식형 월수익률 · 전략=TOP2 백테스트(2021.08~) · 데이터: ETF_데이터_pivot',
+fig.text(0.99,0.01,'시장 변동성=KOSPI200 월중 일수익률 연율화(2019.01~2026.07, 91개월) · ETF=국내 주식형(해외·채권·파생·원자재 제외) 월수익률 · 전략=TOP2 백테스트(2021.08~) · 데이터: ETF데이터',
          ha='right',color=GRAY,fontsize=7.2)
 fig.tight_layout(rect=[0,0.03,1,1])
 fig.savefig(os.path.join(IMG,'vol_regime_evidence.png'),bbox_inches='tight'); plt.close(fig)
