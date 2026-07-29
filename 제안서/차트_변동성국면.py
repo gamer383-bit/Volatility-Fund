@@ -56,6 +56,34 @@ st_mean=[float(gm[gm.index.isin(ms)].mean()*100) for _,ms in REG]
 for (lb,ms),em,el,sm in zip(REG,etf_mean,etf_loss,st_mean):
     print(f"{lb.replace(chr(10),' ')}: ETF 평균 {em:+.2f}%/월 (손실 비중 {el:.0f}%) | 전략 {sm:+.2f}%/월")
 
+def draw_card():
+    """1페이지 4번째 카드용 세로형 (aspect ≈ 0.83)"""
+    x=np.arange(3); wd=0.35
+    fig,ax=plt.subplots(figsize=(5.0,6.0),dpi=150)
+    ax.bar(x-wd/2,etf_mean,wd,color=SKY,label='일반 주식형 ETF 평균')
+    ax.bar(x+wd/2,st_mean,wd,color=ORANGE,label='변동성 하베스트(성장형)')
+    ax.axhline(0,color='#666',lw=1.0)
+    for xi,(em,el) in enumerate(zip(etf_mean,etf_loss)):
+        va='bottom' if em>=0 else 'top'; off=0.14 if em>=0 else -0.14
+        ax.text(xi-wd/2,em+off,f"{em:+.1f}%",ha='center',va=va,fontsize=13,color='#40566e',fontweight='bold')
+        ax.text(xi,-2.15,f"손실 ETF {el:.0f}%",ha='center',fontsize=11,
+                color=(RED if el>=50 else GRAY),fontweight='bold')
+    for xi,sm in enumerate(st_mean):
+        ax.text(xi+wd/2,sm+0.14,f"{sm:+.1f}%",ha='center',va='bottom',fontsize=14.5,color=ORANGE,fontweight='bold')
+    ax.set_xticks(x)
+    ax.set_xticklabels(['저변동\n(σ<15%)','변동성 급등\n(Δσ 상위20%)','고변동\n(σ≥30%)'],fontsize=11.5,color=NAVY)
+    ax.set_ylabel('월평균 수익률 (%)',fontsize=12,color=NAVY)
+    ax.set_ylim(-2.6,max(st_mean)+1.5)
+    ax.grid(alpha=0.22,axis='y'); ax.spines[['top','right']].set_visible(False)
+    ax.tick_params(axis='y',labelsize=10.5)
+    ax.legend(fontsize=10.5,frameon=False,loc='upper left')
+    fig.text(0.5,0.012,'주식형 ETF 1,081종목 × 91개월(2019.01~2026.07)\n시장 변동성=KODEX 200 · 데이터: ETF_데이터_pivot',
+             ha='center',color=GRAY,fontsize=8.0)
+    fig.tight_layout(rect=[0,0.055,1,1])
+    fig.savefig(os.path.join(IMG,'vol_regime_card.png'),bbox_inches='tight'); plt.close(fig)
+    print("saved vol_regime_card.png")
+draw_card()
+
 x=np.arange(3); wd=0.34
 fig,ax=plt.subplots(figsize=(8.6,4.6),dpi=140)
 b1=ax.bar(x-wd/2,etf_mean,wd,color=SKY,label='일반 주식형 ETF 평균 (1,081종목)')
