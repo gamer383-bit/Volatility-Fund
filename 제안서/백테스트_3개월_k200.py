@@ -22,15 +22,15 @@ R,Q=0.025,0.025; TCB,TCS=0.0005,0.0030
 KPUT,KKO,H,K1,K2=100.,100.,60.,110.,140.
 START='2026-04-29'; SIGCAP=0.60; WMIN=0.10   # 최근 3개월(앵커 4/28 종가) · 최저 편입비 10%
 
-def load_top2():
-    """엑셀 D열(지수생성_top2.py로 생성한 삼성·하이닉스 50:50 일별리밸 지수)"""
-    raw=pd.read_excel(XLS,sheet_name='삼성전자_하이닉스',header=None)
+def load_k200():
+    """엑셀 지수 시트의 코스피200 종가를 기초지수로 사용. 주말·휴장 채움(변동 0) 행 제거."""
+    raw=pd.read_excel(XLS,sheet_name='코스피_코스피200_코스닥150',header=None)
     d=raw.iloc[14:]
-    s=pd.Series(pd.to_numeric(d.iloc[:,3],errors='coerce').values,
+    s=pd.Series(pd.to_numeric(d.iloc[:,2],errors='coerce').values,
                 index=pd.to_datetime(d.iloc[:,0]).values).dropna()
     idx=pd.to_datetime(s.index); s=s[idx.dayofweek<5]
     chg=s.pct_change().fillna(1.0); return s[chg!=0]
-top2=load_top2()
+top2=load_k200()
 ret=top2.pct_change().dropna()
 dts=ret.index
 lr=np.log(1+ret)
@@ -172,8 +172,8 @@ def draw(dates,base,out,title,fname,show_restart):
 
 dates,base,out0=run(False)
 print(f"[환매없음] 기초 {base[-1]-100:+.1f}% · 성장 {out0['g']['pV'][-1]-100:+.1f}% · 안정 {out0['s']['pV'][-1]-100:+.1f}%")
-draw(dates,base,out0,'① 목표 환매 없음 (계속 운용)','qpms_3m.png',False)
+draw(dates,base,out0,'① 목표 환매 없음 (계속 운용)','qpms_3m_k2.png',False)
 dates,base,out1=run(True)
 rg=[d.strftime('%m/%d') for d in out1['g']['restarts']]; rs=[d.strftime('%m/%d') for d in out1['s']['restarts']]
 print(f"[+15% 재운용] 기초 {base[-1]-100:+.1f}% · 성장 {out1['g']['pV'][-1]-100:+.1f}% (재운용 {rg}) · 안정 {out1['s']['pV'][-1]-100:+.1f}% (재운용 {rs})")
-draw(dates,base,out1,'② 목표 +15% 달성 시 재운용','qpms_3m_re.png',True)
+draw(dates,base,out1,'② 목표 +15% 달성 시 재운용','qpms_3m_re_k2.png',True)
