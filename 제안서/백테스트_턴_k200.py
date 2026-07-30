@@ -35,7 +35,7 @@ def load_k200():
     raw=pd.read_excel(XLS,sheet_name='코스피_코스피200_코스닥150',header=None)
     d=raw.iloc[14:]
     s=pd.Series(pd.to_numeric(d.iloc[:,2],errors='coerce').values,
-                index=pd.to_datetime(d.iloc[:,0]).values).dropna()
+                index=pd.to_datetime(d.iloc[:,0]).values).dropna().sort_index()
     idx=pd.to_datetime(s.index); s=s[idx.dayofweek<5]
     chg=s.pct_change().fillna(1.0); return s[chg!=0]
 top2=load_k200()

@@ -125,7 +125,7 @@ table_png('tbl_bond_r.png','예상수익률 (원금 대비 %, 주식파트 50% +
 # ================= 3) TOP2 실측: 분기 리셋 백테스트 =================
 raw=pd.read_excel(XLS,sheet_name='삼성전자_하이닉스',header=None)
 d=raw.iloc[14:]
-s=pd.Series(pd.to_numeric(d.iloc[:,3],errors='coerce').values,index=pd.to_datetime(d.iloc[:,0]).values).dropna()
+s=pd.Series(pd.to_numeric(d.iloc[:,3],errors='coerce').values,index=pd.to_datetime(d.iloc[:,0]).values).dropna().sort_index()
 ii=pd.to_datetime(s.index); s=s[ii.dayofweek<5]
 chg=s.pct_change().fillna(1.0); top2=s[chg!=0]
 ret=top2.pct_change().dropna(); dts=ret.index
@@ -216,8 +216,10 @@ fig.savefig(os.path.join(IMG,'bt_bond_table.png'),bbox_inches='tight',facecolor=
 print(f"saved bt_bond_table.png ({len(rows)}분기)")
 
 # ================= 4) 최근 3개월 실측 (4/28 앵커) =================
-i3=int(np.searchsorted(dts,pd.Timestamp('2026-04-29')))
-d3,n3,w3,r3=run_bt(i3-1,len(dts)-1)
+last=dts[-1]
+anchor3=last-pd.DateOffset(months=3)
+i3=int(np.searchsorted(dts,anchor3,side='right'))-1   # 정확히 3개월 전(또는 직전 영업일) 종가 앵커
+d3,n3,w3,r3=run_bt(i3,len(dts)-1)
 b3=top2.loc[d3]/top2.loc[d3[0]]
 bm3=np.ones(len(d3))
 for k in range(1,len(d3)):
@@ -235,7 +237,8 @@ for (v,c),yy in zip(labs,pos):
 for rd_ in r3: ax1.axvline(rd_,color='#c05000',ls=':',lw=1.0)
 ax1.set_xlim(d3[0],d3[-1]+pd.Timedelta(days=6))
 ax1.axhline(100,color='#c9d5e2',lw=0.8)
-ax1.set_title('최근 3개월 실측 (기준가 2026-04-28 종가 ~ 07-28) — 기초 +48% 급등 후 -5% 왕복 구간',
+pk=(b3.max()-1)*100; fn3=(float(b3.iloc[-1])-1)*100
+ax1.set_title(f"최근 3개월 실측 (기준가 {d3[0].strftime('%Y-%m-%d')} 종가 ~ {d3[-1].strftime('%m-%d')}) — 기초 {pk:+.0f}% 급등 후 {fn3:+.0f}% 왕복 구간",
               fontsize=12,color=NAVY,fontweight='bold',loc='left')
 ax1.legend(fontsize=9,frameon=False,loc='upper left')
 ax1.grid(alpha=0.22); ax1.spines[['top','right']].set_visible(False)

@@ -36,7 +36,7 @@ def load_top2():
     raw=pd.read_excel(XLS,sheet_name='삼성전자_하이닉스',header=None)
     d=raw.iloc[14:]
     s=pd.Series(pd.to_numeric(d.iloc[:,3],errors='coerce').values,
-                index=pd.to_datetime(d.iloc[:,0]).values).dropna()
+                index=pd.to_datetime(d.iloc[:,0]).values).dropna().sort_index()
     idx=pd.to_datetime(s.index); s=s[idx.dayofweek<5]
     chg=s.pct_change().fillna(1.0); return s[chg!=0]
 top2=load_top2()

@@ -28,7 +28,7 @@ TARGET=0.15; SIGCAP=0.60; WMIN=0.10
 raw=pd.read_excel(XLS,sheet_name='삼성전자_하이닉스',header=None)
 d=raw.iloc[14:]
 s=pd.Series(pd.to_numeric(d.iloc[:,3],errors='coerce').values,
-            index=pd.to_datetime(d.iloc[:,0]).values).dropna()
+            index=pd.to_datetime(d.iloc[:,0]).values).dropna().sort_index()
 i=pd.to_datetime(s.index); s=s[i.dayofweek<5]
 chg=s.pct_change().fillna(1.0); top2=s[chg!=0]
 ret=top2.pct_change().dropna(); dts=ret.index

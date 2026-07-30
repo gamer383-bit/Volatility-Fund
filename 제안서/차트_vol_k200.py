@@ -17,7 +17,7 @@ XLS=os.path.join(os.path.dirname(BASE),'data','삼성전자_하이닉스_코스�
 
 raw=pd.read_excel(XLS,sheet_name='코스피_코스피200_코스닥150',header=None)
 d=raw.iloc[14:]
-s=pd.Series(pd.to_numeric(d.iloc[:,2],errors='coerce').values,index=pd.to_datetime(d.iloc[:,0]).values).dropna()
+s=pd.Series(pd.to_numeric(d.iloc[:,2],errors='coerce').values,index=pd.to_datetime(d.iloc[:,0]).values).dropna().sort_index()
 i=pd.to_datetime(s.index); s=s[i.dayofweek<5]
 chg=s.pct_change().fillna(1.0); s=s[chg!=0]
 ret=s.pct_change().dropna(); lr=np.log(1+ret)
