@@ -26,6 +26,7 @@ XLS=os.path.join(os.path.dirname(BASE),'data','삼성전자_하이닉스_코스�
 SIG=0.70; R,Q=0.025,0.025; T=0.25
 KP,K1,K2=100.,110.,150.
 WMIN,WMAX=0.10,1.00; ALLOC=0.50; TCB,TCS=0.0005,0.0030
+TAUF=14/365   # 편입비 산출용 τ 바닥: 잔존 2주 미만이면 2주로 고정(만기 절벽 완화, 정산은 실제 만기)
 SIGCAP=0.70
 
 def N1(x): return float(Nv(x))
@@ -65,7 +66,7 @@ def mc_scatter():
         Sn=S*np.exp(drift*dt+vol*rng.standard_normal(NP))
         r0=Sn/S-1.0; S=Sn
         V*=1.0+w*r0+(1.0-w)*rday
-        nw=dvec(S,max(T-st*dt,1e-8))
+        nw=dvec(S,max(T-st*dt,TAUF))
         V*=1.0-np.where(nw>w,TCB,TCS)*np.abs(nw-w); w=nw
     V*=1.0-TCS*w
     X=S; Y=(V-1)*100
@@ -117,7 +118,7 @@ def table_png(fname,title,fn,fmt,hl=None):
     fig.savefig(os.path.join(IMG,fname),bbox_inches='tight',facecolor='white'); plt.close(fig)
     print("saved",fname)
 table_png('tbl_bond_w.png','주식 편입비 (%)  — 구조화 델타 × 배분 50%',
-          lambda lv,tau: sdelta(lv,(1/504 if tau is None else tau))*ALLOC*100, lambda v:f"{v:.0f}%")
+          lambda lv,tau: sdelta(lv,(TAUF if tau is None else max(tau,TAUF)))*ALLOC*100, lambda v:f"{v:.0f}%")
 table_png('tbl_bond_r.png','예상수익률 (원금 대비 %, 주식파트 50% + 채권 50% 연 2.5%)',
           lambda lv,tau: ALLOC*sret(lv,tau)+0.5*2.5*((T-(tau if tau is not None else 0))/1.0)*4*0.25,
           lambda v:f"{v:+.1f}%", hl=lambda v:v>=5.0)
@@ -151,7 +152,7 @@ def run_bt(i0,i1):
             nw=sdelta(100.,T,sig)*ALLOC
             V*=1.0-TCB*nw; w=nw; resets.append(dts[j])
         else:
-            tau=max((mat-dts[j]).days/365.0,1e-8)
+            tau=max((mat-dts[j]).days/365.0,TAUF)   # 잔존 2주 바닥
             nw=sdelta(S,tau,sig)*ALLOC
             V*=1.0-(TCB if nw>w else TCS)*abs(nw-w); w=nw
         dsl.append(dts[j]); navs.append(V); ws.append(w)
