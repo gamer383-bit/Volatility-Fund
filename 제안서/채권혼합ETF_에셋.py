@@ -166,7 +166,7 @@ for k in range(1,len(dl)):
     bm[k]=bm[k-1]*(1+0.4*float(base.iloc[k]/base.iloc[k-1]-1)+0.6*rday)
 print(f"분기 리셋 백테스트 {dl[0].date()}~{dl[-1].date()}: 펀드 {nav[-1]*100-100:+.1f}% · BM {bm[-1]*100-100:+.1f}% · 기초 {float(base.iloc[-1])*100-100:+.1f}% · 리셋 {len(resets)}회")
 fig,(ax1,ax2)=plt.subplots(2,1,figsize=(9.8,5.6),dpi=140,height_ratios=[1.7,1],sharex=True)
-ax1.plot(dl,bm*100,color=GRAY,lw=1.7,ls='--',label='BM (TOP2 40% + 1년국고채, 매일 리밸)')
+ax1.plot(dl,bm*100,color=GRAY,lw=1.8,label='BM (TOP2 40% + 1년국고채, 매일 리밸)')
 ax1.plot(dl,nav*100,color=ORANGE,lw=2.2,label='채권혼합 ETF (주식 50%·분기 리셋)')
 for rd_ in resets: ax1.axvline(rd_,color='#e3c9a8',lw=0.7)
 labs=sorted([(bm[-1]*100,GRAY),(nav[-1]*100,ORANGE)],key=lambda t:-t[0])
@@ -227,7 +227,7 @@ for k in range(1,len(d3)):
     bm3[k]=bm3[k-1]*(1+0.4*float(b3.iloc[k]/b3.iloc[k-1]-1)+0.6*rday)
 print(f"3개월 실측: 펀드 {n3[-1]*100-100:+.1f}% · BM {bm3[-1]*100-100:+.1f}% · 기초 {float(b3.iloc[-1])*100-100:+.1f}%")
 fig,(ax1,ax2)=plt.subplots(2,1,figsize=(9.8,5.4),dpi=140,height_ratios=[1.6,1],sharex=True)
-ax1.plot(d3,bm3*100,color=GRAY,lw=1.7,ls='--',label='BM (TOP2 40% + 1년국고채, 매일 리밸)')
+ax1.plot(d3,bm3*100,color=GRAY,lw=1.8,label='BM (TOP2 40% + 1년국고채, 매일 리밸)')
 ax1.plot(d3,n3*100,color=ORANGE,lw=2.2,label='채권혼합 ETF')
 labs=sorted([(bm3[-1]*100,GRAY),(n3[-1]*100,ORANGE)],key=lambda t:-t[0])
 gap=(max(bm3.max(),n3.max())*100-min(bm3.min(),n3.min())*100)*0.075
