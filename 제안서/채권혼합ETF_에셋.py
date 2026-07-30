@@ -165,12 +165,11 @@ for k in range(1,len(dl)):
     bm[k]=bm[k-1]*(1+0.4*float(base.iloc[k]/base.iloc[k-1]-1)+0.6*rday)
 print(f"분기 리셋 백테스트 {dl[0].date()}~{dl[-1].date()}: 펀드 {nav[-1]*100-100:+.1f}% · BM {bm[-1]*100-100:+.1f}% · 기초 {float(base.iloc[-1])*100-100:+.1f}% · 리셋 {len(resets)}회")
 fig,(ax1,ax2)=plt.subplots(2,1,figsize=(9.8,5.6),dpi=140,height_ratios=[1.7,1],sharex=True)
-ax1.plot(dl,base*100,color=SKY,lw=1.5,label='TOP2 지수(시작=100)')
-ax1.plot(dl,bm*100,color=GRAY,lw=1.5,ls='--',label='BM (TOP2 40% + 1년국고채)')
+ax1.plot(dl,bm*100,color=GRAY,lw=1.7,ls='--',label='BM (TOP2 40% + 1년국고채, 매일 리밸)')
 ax1.plot(dl,nav*100,color=ORANGE,lw=2.2,label='채권혼합 ETF (주식 50%·분기 리셋)')
 for rd_ in resets: ax1.axvline(rd_,color='#e3c9a8',lw=0.7)
-labs=sorted([(float(base.iloc[-1])*100,SKY),(bm[-1]*100,GRAY),(nav[-1]*100,ORANGE)],key=lambda t:-t[0])
-gap=(max(float(base.max())*100,nav.max()*100)-min(float(base.min())*100,nav.min()*100))*0.055
+labs=sorted([(bm[-1]*100,GRAY),(nav[-1]*100,ORANGE)],key=lambda t:-t[0])
+gap=(max(bm.max(),nav.max())*100-min(bm.min(),nav.min())*100)*0.055
 pos=[]
 for v,_ in labs: pos.append(v if not pos else min(v,pos[-1]-gap))
 for (v,c),yy in zip(labs,pos):
@@ -225,11 +224,10 @@ for k in range(1,len(d3)):
     bm3[k]=bm3[k-1]*(1+0.4*float(b3.iloc[k]/b3.iloc[k-1]-1)+0.6*rday)
 print(f"3개월 실측: 펀드 {n3[-1]*100-100:+.1f}% · BM {bm3[-1]*100-100:+.1f}% · 기초 {float(b3.iloc[-1])*100-100:+.1f}%")
 fig,(ax1,ax2)=plt.subplots(2,1,figsize=(9.8,5.4),dpi=140,height_ratios=[1.6,1],sharex=True)
-ax1.plot(d3,b3*100,color=SKY,lw=1.7,label='TOP2 지수(시작=100)')
-ax1.plot(d3,bm3*100,color=GRAY,lw=1.6,ls='--',label='BM (TOP2 40% + 1년국고채)')
+ax1.plot(d3,bm3*100,color=GRAY,lw=1.7,ls='--',label='BM (TOP2 40% + 1년국고채, 매일 리밸)')
 ax1.plot(d3,n3*100,color=ORANGE,lw=2.2,label='채권혼합 ETF')
-labs=sorted([(float(b3.iloc[-1])*100,SKY),(bm3[-1]*100,GRAY),(n3[-1]*100,ORANGE)],key=lambda t:-t[0])
-gap=(float(b3.max())*100-float(b3.min())*100)*0.055
+labs=sorted([(bm3[-1]*100,GRAY),(n3[-1]*100,ORANGE)],key=lambda t:-t[0])
+gap=(max(bm3.max(),n3.max())*100-min(bm3.min(),n3.min())*100)*0.075
 pos=[]
 for v,_ in labs: pos.append(v if not pos else min(v,pos[-1]-gap))
 for (v,c),yy in zip(labs,pos):
@@ -251,4 +249,31 @@ fig.text(0.99,0.01,'점선(수직)=분기 리셋 · σ=직전 60영업일 연환
 fig.tight_layout()
 fig.savefig(os.path.join(IMG,'bt_bond_3m.png'),bbox_inches='tight'); plt.close(fig)
 print("saved bt_bond_3m.png")
+
+# ================= 5) 구간별 예시: 상승 추세 / 변동장 / 하락장 (신규 설정, BM vs 펀드) =================
+WINDOWS=[('하락장 1년','2021-12-30',365,'채권 50% + 저가매수로 방어','bt_bond_down.png'),
+         ('변동장 1년','2024-07-25',365,'등락 반복을 매매로 수확 → BM 초과','bt_bond_flat.png'),
+         ('상승 추세 1년','2025-06-02',365,'이익을 확정하며 상승에 참여','bt_bond_up.png')]
+for nm,t0,ndays,msg,fname in WINDOWS:
+    i0w=int(np.searchsorted(dts,pd.Timestamp(t0)))
+    dw,nw_,ww,rw=run_bt(i0w,int(np.searchsorted(dts,dts[i0w]+pd.Timedelta(days=ndays),side='right'))-1)
+    bmw=np.ones(len(dw)); bw=top2.loc[dw]/top2.loc[dw[0]]
+    for k in range(1,len(dw)):
+        bmw[k]=bmw[k-1]*(1+0.4*float(bw.iloc[k]/bw.iloc[k-1]-1)+0.6*rday)
+    fig,ax=plt.subplots(figsize=(5.4,4.15),dpi=150)
+    ax.plot(dw,bmw*100,color=GRAY,lw=1.8,ls='--',label='BM')
+    ax.plot(dw,nw_*100,color=ORANGE,lw=2.4,label='채권혼합 ETF')
+    ax.axhline(100,color='#c9d5e2',lw=0.8)
+    for rd_ in rw: ax.axvline(rd_,color='#e3c9a8',lw=0.7)
+    f1=nw_[-1]*100-100; b1=bmw[-1]*100-100
+    ttl=f"{nm} ({dw[0].strftime('%y.%m')}~{dw[-1].strftime('%y.%m')})"+chr(10)+f"펀드 {f1:+.1f}% vs BM {b1:+.1f}%"
+    ax.set_title(ttl,fontsize=12.5,color=NAVY,fontweight='bold',loc='left')
+    ax.text(0.02,0.02,msg,transform=ax.transAxes,fontsize=10.5,color='#c05000',fontweight='bold',va='bottom')
+    ax.legend(fontsize=9.5,frameon=False,loc='best')
+    ax.grid(alpha=0.22); ax.spines[['top','right']].set_visible(False)
+    ax.tick_params(labelsize=8.5)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%y.%m'))
+    fig.tight_layout(pad=0.5)
+    fig.savefig(os.path.join(IMG,fname),bbox_inches='tight'); plt.close(fig)
+    print(f"saved {fname}: 펀드 {f1:+.1f}% vs BM {b1:+.1f}%")
 print("done")
