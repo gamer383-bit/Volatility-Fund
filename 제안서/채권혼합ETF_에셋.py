@@ -255,9 +255,10 @@ fig.savefig(os.path.join(IMG,'bt_bond_3m.png'),bbox_inches='tight'); plt.close(f
 print("saved bt_bond_3m.png")
 
 # ================= 5) 구간별 예시: 상승 추세 / 변동장 / 하락장 (신규 설정, BM vs 펀드) =================
-WINDOWS=[('하락 1년 (고변동)','2024-05-10',365,'하락장에도 플러스 — 저가매수 수확','bt_bond_down.png'),
-         ('보합 1년 (고변동)','2024-07-15',365,'등락 반복을 매매로 수확 → BM 초과','bt_bond_flat.png'),
-         ('상승 1년','2023-08-30',365,'상승에 참여하며 등락 수확 병행','bt_bond_up.png')]
+WINDOWS=[('변동장 1년 ② (하락 왕복)','2024-05-10',365,'하락장에도 플러스 — 저가매수 수확','bt_bond_down.png'),
+         ('변동장 1년 ① (보합 왕복)','2024-07-15',365,'등락 반복을 매매로 수확 → BM 초과','bt_bond_flat.png'),
+         ('상승 1년','2023-08-30',365,'상승에 참여하며 등락 수확 병행','bt_bond_up.png'),
+         ('하락 1년 (급락 구간)','2021-12-13',365,'깊은 하락, 낙폭을 1/4로 방어','bt_bond_down2.png')]
 for nm,t0,ndays,msg,fname in WINDOWS:
     i0w=int(np.searchsorted(dts,pd.Timestamp(t0)))
     dw,nw_,ww,rw=run_bt(i0w,int(np.searchsorted(dts,dts[i0w]+pd.Timedelta(days=ndays),side='right'))-1)
