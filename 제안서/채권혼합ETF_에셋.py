@@ -265,7 +265,7 @@ for nm,t0,ndays,msg,fname in WINDOWS:
     for k in range(1,len(dw)):
         bmw[k]=bmw[k-1]*(1+0.4*float(bw.iloc[k]/bw.iloc[k-1]-1)+0.6*rday)
     fig,ax=plt.subplots(figsize=(5.4,4.15),dpi=150)
-    ax.plot(dw,bmw*100,color=GRAY,lw=1.8,ls='--',label='BM')
+    ax.plot(dw,bmw*100,color=GRAY,lw=1.9,label='BM')
     ax.plot(dw,nw_*100,color=ORANGE,lw=2.4,label='채권혼합 ETF')
     ax.axhline(100,color='#c9d5e2',lw=0.8)
     for rd_ in rw: ax.axvline(rd_,color='#e3c9a8',lw=0.7)
