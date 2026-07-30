@@ -72,17 +72,17 @@ def mc_scatter():
     X=S; Y=(V-1)*100
     print(f"MC scatter: 평균 {Y.mean():+.1f}% · 중앙값 {np.median(Y):+.1f}% · 수익확률 {(Y>=0).mean()*100:.0f}%")
     fig,ax=plt.subplots(figsize=(9.6,6.0),dpi=140)
-    m=(X>=50)&(X<=170)&(Y>=-45)&(Y<=40)
+    m=(X>=50)&(X<=170)&(Y>=-45)&(Y<=50)
     ax.axhline(0,color='#8a97a8',lw=0.9); ax.axvline(100,color='#9aa7b8',ls='--',lw=1)
-    ax.text(100,40,'S0=100',color=GRAY,fontsize=9,ha='center',va='top')
+    ax.text(100,50,'S0=100',color=GRAY,fontsize=9,ha='center',va='top')
     ax.scatter(X[m],Y[m],s=3,color=NAVY,alpha=0.30,linewidths=0)
     B=40; ed=np.linspace(50,170,B+1); cen=(ed[:-1]+ed[1:])/2
     bm=np.full(B,np.nan)
     for b in range(B):
         sel=(X>=ed[b])&(X<ed[b+1])
-        if sel.sum()>=5: bm[b]=np.clip(Y[sel].mean(),-45,40)
+        if sel.sum()>=5: bm[b]=np.clip(Y[sel].mean(),-45,50)
     ax.plot(cen,bm,color=ORANGE,lw=2.5,label='구간 평균')
-    ax.set_xlim(50,170); ax.set_ylim(-45,40)
+    ax.set_xlim(50,170); ax.set_ylim(-45,50)
     ax.set_xticks(range(50,171,10))
     ax.set_xlabel('3개월(분기 만기) 기초자산 가격 (설정=100)',fontsize=10.5,color=NAVY)
     ax.set_ylabel('구조 수익률 (%)',fontsize=10.5,color=NAVY)
@@ -194,18 +194,18 @@ print("saved bt_bond_full.png")
 # 분기별 요약 테이블
 qs=[dl[0]]+resets+[dl[-1]]
 rows=[]
-navS=pd.Series(nav,index=dl); baseS=pd.Series(base.values,index=dl)
+navS=pd.Series(nav,index=dl); bmS=pd.Series(bm,index=dl)
 for k in range(len(qs)-1):
     a,b=qs[k],qs[k+1]
     rows.append((f"{a.strftime('%y.%m.%d')}~{b.strftime('%y.%m.%d')}",
-                 float(baseS[b]/baseS[a]-1)*100, float(navS[b]/navS[a]-1)*100))
+                 float(bmS[b]/bmS[a]-1)*100, float(navS[b]/navS[a]-1)*100))
 fig,ax=plt.subplots(figsize=(7.6,3.35),dpi=150)   # 슬롯(4.98×2.03in) 비율
 ax.axis('off'); fig.patch.set_facecolor('white')
 ax.add_patch(plt.Rectangle((0.005,0.005),0.99,0.99,fill=False,ec='#d5dde6',lw=1.4,transform=ax.transAxes))
 ax.text(0.03,0.93,'분기(리셋 단위) 성과 요약',transform=ax.transAxes,fontsize=11,fontweight='bold',color=NAVY)
 half=(len(rows)+1)//2
 for blk,(x0,rws) in enumerate((( 0.03,rows[:half]),(0.53,rows[half:]))):
-    for c,x in (('기간',x0),('기초',x0+0.27),('펀드',x0+0.38)):
+    for c,x in (('기간',x0),('BM',x0+0.27),('펀드',x0+0.38)):
         ax.text(x,0.83,c,transform=ax.transAxes,fontsize=8.0,fontweight='bold',color=BLUE)
     ax.plot([x0,x0+0.44],[0.80,0.80],transform=ax.transAxes,color='#c9d5e2',lw=0.9)
     for i,(p,b_,f_) in enumerate(rws):
