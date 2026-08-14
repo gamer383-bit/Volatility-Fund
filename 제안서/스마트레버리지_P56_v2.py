@@ -1,0 +1,143 @@
+# -*- coding: utf-8 -*-
+"""P5·P6 차트 v2
+- P5 3분할: ① KOSPI200 4년5개월 왕복 ② 하이닉스레버리지 출시가 복귀(05.27~07.03) ③ 왕복 창(06.05~07.08)
+- P6 (ETF웹 '레버리지 ETF' 레슨, 책 3-1 참조): 산술 극단(기존 lev15_arith0 유지) +
+  ② 제자리 실측(2026.02.26~04.16, K200 -0.3% vs 레버리지 -9.1%, 한때 -41%) ③ 추세장(03.31~05.29, +79.5%→실제 +207%)
+데이터: ETF_데이터_pivot
+"""
+import os, platform, sys, io
+sys.stdout=io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
+import numpy as np, pandas as pd
+import matplotlib; matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
+plt.rcParams['font.family']=('Malgun Gothic' if platform.system()=='Windows' else 'AppleGothic')
+plt.rcParams['axes.unicode_minus']=False
+NAVY='#043B72'; ORANGE='#F58220'; GRAY='#84888B'; SKY='#8fa8bf'; RED='#C0392B'
+BASE=os.path.dirname(os.path.abspath(__file__))
+IMG=os.path.join(BASE,'img')
+df=pd.read_parquet("C:/Users/gamer38/Documents/Claude/Projects/ETF WEB/ETF_데이터_pivot.parquet")
+
+def px(nm,col='수정주가(원)'):
+    k=df[df['종목명']==nm].dropna(subset=[col]).sort_values('날짜')
+    s=pd.Series(k[col].astype(float).values,index=pd.to_datetime(k['날짜']).values)
+    i=pd.to_datetime(s.index); s=s[i.dayofweek<5]
+    chg=s.pct_change().fillna(1.0); return s[chg!=0]
+k1=px('KODEX 200'); k2=px('KODEX 레버리지')
+hv=px('KODEX SK하이닉스단일종목레버리지')
+
+def style(ax):
+    for sp in ['top','right']: ax.spines[sp].set_visible(False)
+    ax.grid(axis='y',color='#e6ebf1',lw=0.7); ax.set_axisbelow(True)
+    ax.tick_params(labelsize=8.5)
+FS=(3.85,3.5)
+
+# ---------- P5-① KOSPI200 4년5개월 왕복 (소형) ----------
+t0,t1=pd.Timestamp('2020-12-30'),pd.Timestamp('2025-05-28')
+w1=k1[(k1.index>=t0)&(k1.index<=t1)]; w2=k2[(k2.index>=t0)&(k2.index<=t1)]
+r1=w1/w1.iloc[0]*100; r2=w2/w2.iloc[0]*100
+print(f"[P5-①] 기초 {r1.iloc[-1]-100:+.1f}% · 레버리지 {r2.iloc[-1]-100:+.1f}%")
+fig,ax=plt.subplots(figsize=FS,dpi=150)
+ax.plot(r1.index,r1.values,color=NAVY,lw=1.5,label='KOSPI200')
+ax.plot(r2.index,r2.values,color=RED,lw=1.5,label='KODEX 레버리지')
+ax.axhline(100,color='#b8c6d4',lw=0.9,ls='--')
+ax.annotate(f"지수 {r1.iloc[-1]-100:+.1f}% (제자리)",xy=(pd.Timestamp('2023-04-01'),114),
+            fontsize=9.5,fontweight='bold',color=NAVY,ha='left')
+ax.annotate(f"레버리지 {r2.iloc[-1]-100:+.1f}%",xy=(pd.Timestamp('2023-04-01'),44),
+            fontsize=9.5,fontweight='bold',color=RED,ha='left')
+ax.set_ylim(38,127)
+ax.set_title("① KOSPI200 왕복 4년 5개월\n(2020.12.30 → 2025.05.28)",fontsize=10,fontweight='bold',color='#222')
+ax.legend(fontsize=7.5,loc='lower left',frameon=False)
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%y.%m'))
+ax.xaxis.set_major_locator(mdates.YearLocator()); style(ax)
+plt.tight_layout(); plt.savefig(os.path.join(IMG,'lev15_long_k200.png')); plt.close()
+
+# ---------- P5-② 하이닉스레버리지 출시가 복귀 ----------
+a,b=pd.Timestamp('2026-05-27'),pd.Timestamp('2026-07-03')
+h=hv[(hv.index>=a)&(hv.index<=b)]
+hb=(1.0+h.pct_change().fillna(0)/2.0).cumprod()*100
+hl=h/h.iloc[0]*100
+print(f"[P5-②] {a.date()}~{b.date()}: 주가 {hb.iloc[-1]-100:+.1f}% · 레버리지 {hl.iloc[-1]-100:+.1f}%")
+fig,ax=plt.subplots(figsize=FS,dpi=150)
+ax.plot(hb.index,hb.values,color=NAVY,lw=1.6,label='SK하이닉스 (역산)')
+ax.plot(hl.index,hl.values,color=RED,lw=1.6,label='하이닉스 레버리지')
+ax.axhline(100,color='#b8c6d4',lw=0.9,ls='--')
+ax.annotate(f"주가\n{hb.iloc[-1]-100:+.1f}%",xy=(hb.index[-1],hb.iloc[-1]),xytext=(6,4),
+            textcoords='offset points',fontsize=9.5,fontweight='bold',color=NAVY)
+ax.annotate(f"레버리지\n{hl.iloc[-1]-100:+.1f}%\n(출시가 복귀)",xy=(hl.index[-1],hl.iloc[-1]),xytext=(6,-30),
+            textcoords='offset points',fontsize=9.5,fontweight='bold',color=RED)
+ax.scatter([hl.index[-1]],[hl.iloc[-1]],s=34,color=RED,zorder=5)
+ax.set_title("② 하이닉스 레버리지 : 상장 5주\n(2026.05.27 상장 → 07.03)",fontsize=10,fontweight='bold',color='#222')
+ax.legend(fontsize=7.5,loc='upper left',frameon=False)
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%m.%d'))
+ax.xaxis.set_major_locator(mdates.DayLocator(interval=7)); style(ax)
+ax.set_xlim(hb.index[0]-pd.Timedelta(days=2),hb.index[-1]+pd.Timedelta(days=11))
+ax.set_ylim(min(hl.min(),hb.min())-6,max(hl.max(),hb.max())+8)
+plt.tight_layout(); plt.savefig(os.path.join(IMG,'lev15_hynix_a.png')); plt.close()
+
+# ---------- P5-③ 왕복 창 06.05~07.08 ----------
+a,b=pd.Timestamp('2026-06-05'),pd.Timestamp('2026-07-08')
+h=hv[(hv.index>=a)&(hv.index<=b)]
+hb=(1.0+h.pct_change().fillna(0)/2.0).cumprod()*100
+hl=h/h.iloc[0]*100
+print(f"[P5-③] {a.date()}~{b.date()}: 주가 {hb.iloc[-1]-100:+.1f}% · 레버리지 {hl.iloc[-1]-100:+.1f}%")
+fig,ax=plt.subplots(figsize=FS,dpi=150)
+ax.plot(hb.index,hb.values,color=NAVY,lw=1.6,label='SK하이닉스 (역산)')
+ax.plot(hl.index,hl.values,color=RED,lw=1.6,label='하이닉스 레버리지')
+ax.axhline(100,color='#b8c6d4',lw=0.9,ls='--')
+ax.annotate(f"주가\n{hb.iloc[-1]-100:+.1f}%\n(제자리)",xy=(hb.index[-1],hb.iloc[-1]),xytext=(6,-4),
+            textcoords='offset points',fontsize=9.5,fontweight='bold',color=NAVY)
+ax.annotate(f"레버리지\n{hl.iloc[-1]-100:+.1f}%",xy=(hl.index[-1],hl.iloc[-1]),xytext=(6,-16),
+            textcoords='offset points',fontsize=9.5,fontweight='bold',color=RED)
+ax.set_title("③ 하이닉스 레버리지 : 왕복 5주\n(2026.06.05 → 07.08)",fontsize=10,fontweight='bold',color='#222')
+ax.legend(fontsize=7.5,loc='upper left',frameon=False)
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%m.%d'))
+ax.xaxis.set_major_locator(mdates.DayLocator(interval=7)); style(ax)
+ax.set_xlim(hb.index[0]-pd.Timedelta(days=2),hb.index[-1]+pd.Timedelta(days=10))
+ax.set_ylim(min(hl.min(),hb.min())-12,max(hl.max(),hb.max())+8)
+plt.tight_layout(); plt.savefig(os.path.join(IMG,'lev15_hynix_b.png')); plt.close()
+
+# ---------- P6-② 제자리 실측 2026.02.26~04.16 ----------
+a,b=pd.Timestamp('2026-02-26'),pd.Timestamp('2026-04-16')
+w1=k1[(k1.index>=a)&(k1.index<=b)]; w2=k2[(k2.index>=a)&(k2.index<=b)]
+r1=w1/w1.iloc[0]*100; r2=w2/w2.iloc[0]*100
+tmin=r2.idxmin()
+print(f"[P6-②] {a.date()}~{b.date()}: K200 {r1.iloc[-1]-100:+.1f}% · 레버리지 {r2.iloc[-1]-100:+.1f}% · 최저 {r2.min()-100:+.1f}% ({tmin.date()})")
+fig,ax=plt.subplots(figsize=FS,dpi=150)
+ax.plot(r1.index,r1.values,color=NAVY,lw=1.6,label='KOSPI200')
+ax.plot(r2.index,r2.values,color=RED,lw=1.6,label='KODEX 레버리지')
+ax.axhline(100,color='#b8c6d4',lw=0.9,ls='--')
+ax.annotate(f"지수 {r1.iloc[-1]-100:+.1f}%\n(제자리)",xy=(r1.index[-1],r1.iloc[-1]),xytext=(-56,10),
+            textcoords='offset points',fontsize=9.5,fontweight='bold',color=NAVY)
+ax.annotate(f"레버리지\n{r2.iloc[-1]-100:+.1f}%",xy=(r2.index[-1],r2.iloc[-1]),xytext=(-50,-34),
+            textcoords='offset points',fontsize=9.5,fontweight='bold',color=RED)
+ax.annotate(f"한때 {r2.min()-100:+.1f}%",xy=(tmin,r2.min()),xytext=(-14,-16),
+            textcoords='offset points',fontsize=9,fontweight='bold',color=RED,
+            arrowprops=dict(arrowstyle='-',color=RED,lw=0.8))
+ax.set_title("실측 : 지수 제자리 7주\n(2026.02.26 ~ 04.16)",fontsize=10,fontweight='bold',color='#222')
+ax.legend(fontsize=7.5,loc='upper left',frameon=False)
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%m.%d')); style(ax)
+ax.set_ylim(r2.min()-14,max(r1.max(),r2.max())+8)
+plt.tight_layout(); plt.savefig(os.path.join(IMG,'lev15_k200flat.png')); plt.close()
+
+# ---------- P6-③ 추세장 2026.03.31~05.29 ----------
+a,b=pd.Timestamp('2026-03-31'),pd.Timestamp('2026-05-29')
+w1=k1[(k1.index>=a)&(k1.index<=b)]; w2=k2[(k2.index>=a)&(k2.index<=b)]
+rb=w1/w1.iloc[0]; rl=w2/w2.iloc[0]
+simple=1.0+(rb-1.0)*2.0
+print(f"[P6-③] {a.date()}~{b.date()}: K200 {float(rb.iloc[-1])*100-100:+.1f}% · 단순2배 {float(simple.iloc[-1])*100-100:+.1f}% · 실제 {float(rl.iloc[-1])*100-100:+.1f}%")
+fig,ax=plt.subplots(figsize=FS,dpi=150)
+ax.plot(rl.index,rl.values*100,color=ORANGE,lw=1.9,label='레버리지 실제 (복리)')
+ax.plot(simple.index,simple.values*100,color=GRAY,lw=1.5,ls='--',label='단순 2배 (가상)')
+ax.plot(rb.index,rb.values*100,color=NAVY,lw=1.4,label='KOSPI200')
+for sr,c,dy in [(rl,ORANGE,2),(simple,GRAY,4),(rb,NAVY,2)]:
+    ax.annotate(f"{float(sr.iloc[-1])*100-100:+.0f}%",xy=(sr.index[-1],sr.iloc[-1]*100),xytext=(-38,dy),
+                textcoords='offset points',fontsize=9.5,fontweight='bold',color=c)
+ax.annotate("복리 효과\n+48%p",xy=(rl.index[-9],float(rl.iloc[-9])*100),xytext=(-72,6),
+            textcoords='offset points',fontsize=9.5,fontweight='bold',color='#b45309')
+ax.set_title("단, 추세장에선 복리가 유리\n(2026.03.31 ~ 05.29)",fontsize=10,fontweight='bold',color='#222')
+ax.legend(fontsize=7.5,loc='upper left',frameon=False)
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%m.%d')); style(ax)
+plt.tight_layout(); plt.savefig(os.path.join(IMG,'lev15_k200trend.png')); plt.close()
+print("저장: lev15_long_k200, lev15_hynix_a, lev15_hynix_b, lev15_k200flat, lev15_k200trend")
