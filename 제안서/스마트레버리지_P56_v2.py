@@ -105,6 +105,21 @@ ax.set_xlim(rl.index[0]-pd.Timedelta(days=2),rl.index[-1]+pd.Timedelta(days=10))
 ax.set_ylim(min(rl.min(),rs.min())-18,max(rl.max(),rs.max())+8)
 plt.tight_layout(); plt.savefig(os.path.join(IMG,'lev15_hynix_b.png')); plt.close()
 
+# ---------- P6-① 극단 예시 (책 그림 3-1.1) : 시장 2배 → 제자리 = 레버리지 0원 ----------
+fig,ax=plt.subplots(figsize=FS,dpi=150)
+xs=[0,1,2]
+ax.plot(xs,[100,200,100],color=NAVY,lw=2.2,marker='o',ms=6,label='지수')
+ax.plot(xs,[100,300,0],color=RED,lw=2.2,marker='o',ms=6,label='레버리지 2배')
+for x,y,t,c,dy in [(1,200,'+100%',NAVY,10),(2,100,'-50%  (제자리)',NAVY,10),
+                   (1,300,'+200%',RED,10),(2,0,'-100% → 0원',RED,12)]:
+    ax.annotate(t,xy=(x,y),xytext=(0,dy),textcoords='offset points',ha='center',
+                fontsize=10,fontweight='bold',color=c)
+ax.set_xticks(xs); ax.set_xticklabels(['시작','시장 2배 상승','시장 제자리'],fontsize=9.5)
+ax.set_ylim(-40,345); style(ax)
+ax.set_title("극단 예시 : 시장이 2배 갔다가\n제자리로 오면, 레버리지는 0원",fontsize=10,fontweight='bold',color='#222')
+ax.legend(fontsize=8.5,loc='upper left',frameon=False)
+plt.tight_layout(); plt.savefig(os.path.join(IMG,'lev15_arith0.png')); plt.close()
+
 # ---------- P6-② 제자리 실측 2026.02.26~04.16 ----------
 a,b=pd.Timestamp('2026-02-26'),pd.Timestamp('2026-04-16')
 w1=k1[(k1.index>=a)&(k1.index<=b)]; w2=k2[(k2.index>=a)&(k2.index<=b)]
