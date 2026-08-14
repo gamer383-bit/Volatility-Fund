@@ -26,6 +26,10 @@ def px(nm,col='수정주가(원)'):
     chg=s.pct_change().fillna(1.0); return s[chg!=0]
 k1=px('KODEX 200'); k2=px('KODEX 레버리지')
 hv=px('KODEX SK하이닉스단일종목레버리지')
+# SK하이닉스 실제 수정주가 (data 폴더, DataGuide, ~2026-08-14)
+_d=pd.read_excel(os.path.join(BASE,'..','data','삼성전자_하이닉스_코스피_코스피200_코스닥150_최근5년_주가데이터.xlsx'),
+                 sheet_name=0,header=None,skiprows=14)
+hx=pd.Series(_d[2].astype(float).values,index=pd.to_datetime(_d[0])).sort_index().dropna()
 
 def style(ax):
     for sp in ['top','right']: ax.spines[sp].set_visible(False)
@@ -53,49 +57,52 @@ ax.xaxis.set_major_formatter(mdates.DateFormatter('%y.%m'))
 ax.xaxis.set_major_locator(mdates.YearLocator()); style(ax)
 plt.tight_layout(); plt.savefig(os.path.join(IMG,'lev15_long_k200.png')); plt.close()
 
-# ---------- P5-② 하이닉스레버리지 출시가 복귀 ----------
-a,b=pd.Timestamp('2026-05-27'),pd.Timestamp('2026-07-03')
+# ---------- P5-② 출시 → 주가 보합 시점(07.07) : 주가·레버리지 모두 실제값 ----------
+a,b=pd.Timestamp('2026-05-27'),pd.Timestamp('2026-07-07')
 h=hv[(hv.index>=a)&(hv.index<=b)]
-hb=(1.0+h.pct_change().fillna(0)/2.0).cumprod()*100
-hl=h/h.iloc[0]*100
-print(f"[P5-②] {a.date()}~{b.date()}: 주가 {hb.iloc[-1]-100:+.1f}% · 레버리지 {hl.iloc[-1]-100:+.1f}%")
+s=hx[(hx.index>=a)&(hx.index<=b)]
+rl=h/h.iloc[0]*100; rs=s/s.iloc[0]*100
+gl=float(rl.iloc[-1])-100; gs=float(rs.iloc[-1])-100
+print(f"[P5-②] {a.date()}~{b.date()}: 주가 실제 {gs:+.1f}% · 레버리지 실제 {gl:+.1f}% ({h.iloc[0]:,.0f}→{h.iloc[-1]:,.0f}원)")
 fig,ax=plt.subplots(figsize=FS,dpi=150)
-ax.plot(hb.index,hb.values,color=NAVY,lw=1.6,label='SK하이닉스 (역산)')
-ax.plot(hl.index,hl.values,color=RED,lw=1.6,label='하이닉스 레버리지')
+ax.plot(rs.index,rs.values,color=NAVY,lw=1.6,label='SK하이닉스 주가 (실제)')
+ax.plot(rl.index,rl.values,color=RED,lw=1.7,label='KODEX 하이닉스 레버리지 (실제)')
 ax.axhline(100,color='#b8c6d4',lw=0.9,ls='--')
-ax.annotate(f"주가\n{hb.iloc[-1]-100:+.1f}%",xy=(hb.index[-1],hb.iloc[-1]),xytext=(6,4),
+ax.annotate(f"주가\n{gs:+.1f}%\n(보합)",xy=(rs.index[-1],rs.iloc[-1]),xytext=(6,-4),
             textcoords='offset points',fontsize=9.5,fontweight='bold',color=NAVY)
-ax.annotate(f"레버리지\n{hl.iloc[-1]-100:+.1f}%\n(출시가 복귀)",xy=(hl.index[-1],hl.iloc[-1]),xytext=(6,-30),
+ax.annotate(f"레버리지\n{gl:+.1f}%",xy=(rl.index[-1],rl.iloc[-1]),xytext=(6,-20),
             textcoords='offset points',fontsize=9.5,fontweight='bold',color=RED)
-ax.scatter([hl.index[-1]],[hl.iloc[-1]],s=34,color=RED,zorder=5)
-ax.set_title("② 하이닉스 레버리지 : 상장 5주\n(2026.05.27 상장 → 07.03)",fontsize=10,fontweight='bold',color='#222')
+ax.scatter([rl.index[-1]],[rl.iloc[-1]],s=32,color=RED,zorder=5)
+ax.set_title("② 하이닉스 레버리지 : 상장 6주\n(2026.05.27 상장 → 07.07)",fontsize=10,fontweight='bold',color='#222')
 ax.legend(fontsize=7.5,loc='upper left',frameon=False)
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%m.%d'))
 ax.xaxis.set_major_locator(mdates.DayLocator(interval=7)); style(ax)
-ax.set_xlim(hb.index[0]-pd.Timedelta(days=2),hb.index[-1]+pd.Timedelta(days=11))
-ax.set_ylim(min(hl.min(),hb.min())-6,max(hl.max(),hb.max())+8)
+ax.set_xlim(rl.index[0]-pd.Timedelta(days=2),rl.index[-1]+pd.Timedelta(days=12))
+ax.set_ylim(min(rl.min(),rs.min())-8,max(rl.max(),rs.max())+8)
 plt.tight_layout(); plt.savefig(os.path.join(IMG,'lev15_hynix_a.png')); plt.close()
 
-# ---------- P5-③ 왕복 창 06.05~07.08 ----------
+# ---------- P5-③ 왕복 창 06.05~07.08 : 주가·레버리지 모두 실제값 ----------
 a,b=pd.Timestamp('2026-06-05'),pd.Timestamp('2026-07-08')
 h=hv[(hv.index>=a)&(hv.index<=b)]
-hb=(1.0+h.pct_change().fillna(0)/2.0).cumprod()*100
-hl=h/h.iloc[0]*100
-print(f"[P5-③] {a.date()}~{b.date()}: 주가 {hb.iloc[-1]-100:+.1f}% · 레버리지 {hl.iloc[-1]-100:+.1f}%")
+s=hx[(hx.index>=a)&(hx.index<=b)]
+rl=h/h.iloc[0]*100; rs=s/s.iloc[0]*100
+gl=float(rl.iloc[-1])-100; gs=float(rs.iloc[-1])-100
+print(f"[P5-③] {a.date()}~{b.date()}: 주가 실제 {gs:+.1f}% · 레버리지 실제 {gl:+.1f}% ({h.iloc[0]:,.0f}→{h.iloc[-1]:,.0f}원)")
 fig,ax=plt.subplots(figsize=FS,dpi=150)
-ax.plot(hb.index,hb.values,color=NAVY,lw=1.6,label='SK하이닉스 (역산)')
-ax.plot(hl.index,hl.values,color=RED,lw=1.6,label='하이닉스 레버리지')
+ax.plot(rs.index,rs.values,color=NAVY,lw=1.6,label='SK하이닉스 주가 (실제)')
+ax.plot(rl.index,rl.values,color=RED,lw=1.7,label='KODEX 하이닉스 레버리지 (실제)')
 ax.axhline(100,color='#b8c6d4',lw=0.9,ls='--')
-ax.annotate(f"주가\n{hb.iloc[-1]-100:+.1f}%\n(제자리)",xy=(hb.index[-1],hb.iloc[-1]),xytext=(6,-4),
+ax.annotate(f"주가\n{gs:+.1f}%\n(제자리)",xy=(rs.index[-1],rs.iloc[-1]),xytext=(6,-4),
             textcoords='offset points',fontsize=9.5,fontweight='bold',color=NAVY)
-ax.annotate(f"레버리지\n{hl.iloc[-1]-100:+.1f}%",xy=(hl.index[-1],hl.iloc[-1]),xytext=(6,-16),
+ax.annotate(f"레버리지\n{gl:+.1f}%",xy=(rl.index[-1],rl.iloc[-1]),xytext=(6,-20),
             textcoords='offset points',fontsize=9.5,fontweight='bold',color=RED)
+ax.scatter([rl.index[-1]],[rl.iloc[-1]],s=32,color=RED,zorder=5)
 ax.set_title("③ 하이닉스 레버리지 : 왕복 5주\n(2026.06.05 → 07.08)",fontsize=10,fontweight='bold',color='#222')
 ax.legend(fontsize=7.5,loc='upper left',frameon=False)
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%m.%d'))
 ax.xaxis.set_major_locator(mdates.DayLocator(interval=7)); style(ax)
-ax.set_xlim(hb.index[0]-pd.Timedelta(days=2),hb.index[-1]+pd.Timedelta(days=10))
-ax.set_ylim(min(hl.min(),hb.min())-12,max(hl.max(),hb.max())+8)
+ax.set_xlim(rl.index[0]-pd.Timedelta(days=2),rl.index[-1]+pd.Timedelta(days=10))
+ax.set_ylim(min(rl.min(),rs.min())-18,max(rl.max(),rs.max())+8)
 plt.tight_layout(); plt.savefig(os.path.join(IMG,'lev15_hynix_b.png')); plt.close()
 
 # ---------- P6-② 제자리 실측 2026.02.26~04.16 ----------
