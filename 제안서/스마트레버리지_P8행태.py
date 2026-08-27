@@ -21,70 +21,74 @@ def px(nm,col='수정주가(원)',zero_ok=False):
     i=pd.to_datetime(s.index); s=s[i.dayofweek<5]
     if zero_ok: return s
     chg=s.pct_change().fillna(1.0); return s[chg!=0]
-k1=px('KODEX 200'); sh=px('KODEX 레버리지','상장주식수(주)',zero_ok=True)
+k1=px('KODEX 200'); k2=px('KODEX 레버리지'); sh=px('KODEX 레버리지','상장주식수(주)',zero_ok=True)
+RED='#C0392B'
 
 def panel(ax,a,b):
     w=k1[(k1.index>=a)&(k1.index<=b)]; v=sh[(sh.index>=a)&(sh.index<=b)]
-    ix=w/w.iloc[0]*100
+    lv=k2[(k2.index>=a)&(k2.index<=b)]
+    ix=w/w.iloc[0]*100; lx=lv/lv.iloc[0]*100
     ax.fill_between(v.index,v.values/1e6,color='#f3c69a',alpha=0.9,label='***** 레버리지 ETF 상장주식수 (백만주, 좌)')
     ax.set_ylabel('상장주식수 (백만주)',fontsize=8.5,color=AMBER); ax.tick_params(axis='y',labelcolor=AMBER,labelsize=8.5)
     ax2=ax.twinx()
-    ax2.plot(ix.index,ix.values,color=NAVY,lw=1.7,label='KOSPI200 (우, 시작=100)')
-    ax2.set_ylabel('KOSPI200 (시작=100)',fontsize=8.5,color=NAVY); ax2.tick_params(axis='y',labelcolor=NAVY,labelsize=8.5)
+    ax2.plot(ix.index,ix.values,color=NAVY,lw=1.6,label='KOSPI200 (우, 시작=100)')
+    ax2.plot(lx.index,lx.values,color=RED,lw=1.8,label='***** 레버리지 ETF 수익률 (우, 시작=100)')
+    ax2.set_ylabel('수익률 (시작=100)',fontsize=8.5,color=NAVY); ax2.tick_params(axis='y',labelcolor=NAVY,labelsize=8.5)
     for spn in ['top']: ax.spines[spn].set_visible(False); ax2.spines[spn].set_visible(False)
     ax.grid(axis='y',color='#eee',lw=0.6); ax.set_axisbelow(True); ax.tick_params(axis='x',labelsize=8.5)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%y.%m'))
     ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
-    return w,v,ix,ax2
+    return w,v,ix,lx,ax2
 
-fig,(a1,b1)=plt.subplots(1,2,figsize=(10.4,3.1),dpi=150)
+fig,(a1,b1)=plt.subplots(1,2,figsize=(10.4,3.5),dpi=150)
 
 # 좌: 상승 추세장 2025-04-30 ~ 2026-06-22
 a,b=pd.Timestamp('2025-04-30'),pd.Timestamp('2026-06-22')
-w,v,ix,ax2=panel(a1,a,b)
-g=float(w.iloc[-1]/w.iloc[0]-1); s0,s1=float(v.iloc[0])/1e6,float(v.iloc[-1])/1e6
+w,v,ix,lx,ax2=panel(a1,a,b)
+g=float(w.iloc[-1]/w.iloc[0]-1); gl2=float(lx.iloc[-1])-100
+s0,s1=float(v.iloc[0])/1e6,float(v.iloc[-1])/1e6
 a1.set_title(f"① 상승 추세장 : 오르면 팔아버린다\n(2025.04 ~ 2026.06 · KOSPI200 {g*100:+.0f}%)",fontsize=10.5,fontweight='bold',color='#222')
 a1.annotate(f"주식수 {s0:,.0f} → {s1:,.0f}백만주 ({(s1/s0-1)*100:+.0f}%)\n= 수익 확정 매도 → 복리를 못 누린다",
-            xy=(0.03,0.82),xycoords='axes fraction',fontsize=9.5,fontweight='bold',color=AMBER)
-ymax=v.max()/1e6; a1.set_ylim(0,ymax*1.45)
-print(f"[좌] 지수 {g*100:+.0f}% · 주식수 {s0:,.0f}→{s1:,.0f}백만주 ({(s1/s0-1)*100:+.0f}%)")
+            xy=(0.03,0.86),xycoords='axes fraction',fontsize=9.5,fontweight='bold',color=AMBER)
+a1.set_xlim(a,b+pd.Timedelta(days=95))
+ax2.annotate(f"레버리지\n{gl2:+,.0f}%",xy=(lx.index[-1],float(lx.iloc[-1])),xytext=(5,-16),
+             textcoords='offset points',fontsize=9.5,fontweight='bold',color=RED)
+ax2.annotate(f"지수\n{g*100:+.0f}%",xy=(ix.index[-1],float(ix.iloc[-1])),xytext=(5,-14),
+             textcoords='offset points',fontsize=9,fontweight='bold',color=NAVY)
+ymax=v.max()/1e6; a1.set_ylim(0,ymax*1.55)
+print(f"[좌] 지수 {g*100:+.0f}% · 레버리지 {gl2:+.0f}% · 주식수 {s0:,.0f}→{s1:,.0f}백만주 ({(s1/s0-1)*100:+.0f}%)")
 
 # 우: 급락·회복장 2020-01-02 ~ 2020-08-31
 a,b=pd.Timestamp('2020-01-02'),pd.Timestamp('2020-08-31')
-w,v,ix,ax2=panel(b1,a,b)
+w,v,ix,lx,ax2=panel(b1,a,b)
 lvl0=float(w.iloc[0]); tmin=w.idxmin()
 rec=w[(w.index>tmin)&(w>=lvl0)]
 trec=rec.index[0]
 smax=float(v.max())/1e6; s0=float(v.iloc[0])/1e6; send=float(v.iloc[-1])/1e6
-gmin=float(w.min()/lvl0-1)
+gmin=float(w.min()/lvl0-1); g=float(w.iloc[-1]/lvl0-1); gl2=float(lx.iloc[-1])-100
 b1.set_title(f"② 급락·회복장 : 원상복귀까지 버틴다\n(2020.01 ~ 2020.08 · 급락 {gmin*100:+.0f}% 후 회복)",fontsize=10.5,fontweight='bold',color='#222')
 ax2.axhline(100,color='#b8c6d4',lw=0.9,ls='--')
-ax2.annotate(f"원상복귀\n{trec.strftime('%Y.%m.%d')}",xy=(trec,100),xytext=(14,-38),textcoords='offset points',
+ax2.set_ylim(38,132)
+ax2.annotate(f"원상복귀\n{trec.strftime('%Y.%m.%d')}",xy=(trec,100),xytext=(26,-74),textcoords='offset points',
              fontsize=8.5,fontweight='bold',color=NAVY,arrowprops=dict(arrowstyle='-',color=NAVY,lw=0.8))
 b1.annotate(f"급락하자 주식수 {s0:,.0f} → {smax:,.0f}백만주 ({(smax/s0-1)*100:+.0f}%)\n= 원상복귀까지 버티기 → 잠식만 얻는다",
-            xy=(0.30,0.84),xycoords='axes fraction',fontsize=9.5,fontweight='bold',color=AMBER)
+            xy=(0.26,0.88),xycoords='axes fraction',fontsize=9.5,fontweight='bold',color=AMBER)
+ax2.annotate(f"지수 {g*100:+.1f}% (복귀·상회)",xy=(b-pd.Timedelta(days=4),113),ha='right',
+             fontsize=9,fontweight='bold',color=NAVY)
+ax2.annotate(f"레버리지 {gl2:+.1f}% (잠식)",xy=(b-pd.Timedelta(days=4),48),ha='right',
+             fontsize=9.5,fontweight='bold',color=RED)
 b1.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
-ymax=v.max()/1e6; b1.set_ylim(0,ymax*1.45)
-print(f"[우] 급락 {gmin*100:+.0f}% · 원상복귀 {trec.date()} · 주식수 {s0:,.0f}→최대 {smax:,.0f}→기말 {send:,.0f}백만주")
+ymax=v.max()/1e6; b1.set_ylim(0,ymax*1.55)
+print(f"[우] 급락 {gmin*100:+.0f}% · 지수 {g*100:+.1f}% · 레버리지 {gl2:+.1f}% · 원상복귀 {trec.date()} · 주식수 {s0:,.0f}→최대 {smax:,.0f}→기말 {send:,.0f}백만주")
 
+import matplotlib.lines as mlines
 h1,l1=a1.get_legend_handles_labels()
-fig.legend(h1+[plt.Line2D([0],[0],color=NAVY,lw=1.7)],l1+['KOSPI200 (우, 시작=100)'],
-           fontsize=8.5,loc='lower center',ncol=2,frameon=False,bbox_to_anchor=(0.5,-0.02))
+fig.legend(h1+[mlines.Line2D([0],[0],color=NAVY,lw=1.6),mlines.Line2D([0],[0],color=RED,lw=1.8)],
+           l1+['KOSPI200 (우, 시작=100)','***** 레버리지 ETF 수익률 (우, 시작=100)'],
+           fontsize=8.5,loc='lower center',ncol=3,frameon=False,bbox_to_anchor=(0.5,-0.02))
 plt.tight_layout(rect=[0,0.06,1,1])
 plt.savefig(os.path.join('img','lev15_flow2.png')); plt.close()
 print("차트 저장: lev15_flow2.png")
-
-# ---- 수익률 표 수치 ----
-k2=px('KODEX 레버리지')
-def stats(a,b):
-    a,b=pd.Timestamp(a),pd.Timestamp(b)
-    w1=k1[(k1.index>=a)&(k1.index<=b)]; w2=k2[(k2.index>=a)&(k2.index<=b)]
-    g=float(w1.iloc[-1]/w1.iloc[0]-1); act=float(w2.iloc[-1]/w2.iloc[0]-1)
-    return g,2*g,act
-gl_,sl_,al_=stats('2025-04-30','2026-06-22')
-gr_,sr_,ar_=stats('2020-01-02','2020-08-31')
-print(f"[표-좌] 지수 {gl_*100:+.1f} 단순2배 {sl_*100:+.1f} 실제 {al_*100:+.1f}")
-print(f"[표-우] 지수 {gr_*100:+.1f} 단순2배 {sr_*100:+.1f} 실제 {ar_*100:+.1f}")
 
 # ---- P8 재작성 ----
 from pptx import Presentation
@@ -105,41 +109,14 @@ def tbox(s,L,T,W,H,text,size,bold,color,font=None,sp=1.15):
         if font: r.font.name=font
         p.line_spacing=sp
     return b
-NAVY_C=RGBColor(0x04,0x3B,0x72); WHITE=RGBColor(0xFF,0xFF,0xFF); ROW2=RGBColor(0xF8,0xFA,0xFC)
-def mini_table(s,L,T,W,rows,hl_row=None):
-    tb=s.shapes.add_table(len(rows),2,Inches(L),Inches(T),Inches(W),Inches(0.31*len(rows))).table
-    tb.columns[0].width=Inches(W*0.52); tb.columns[1].width=Inches(W*0.48)
-    for i,(k,v_) in enumerate(rows):
-        c0,c1=tb.cell(i,0),tb.cell(i,1)
-        c0.text=k; c1.text=v_
-        for c,bold,col in [(c0,True,WHITE),(c1,i==hl_row,DARK if i!=hl_row else RGBColor(0xC0,0x39,0x2B))]:
-            for p in c.text_frame.paragraphs:
-                p.alignment=None
-                for r in p.runs:
-                    r.font.size=Pt(10); r.font.bold=bold; r.font.color.rgb=col
-                    r.font.name=FT_B if bold else FT_M
-        c0.fill.solid(); c0.fill.fore_color.rgb=NAVY_C
-        c1.fill.solid(); c1.fill.fore_color.rgb=ROW2 if i%2 else WHITE
-    return tb
-
 s=prs.slides[7]
 for sh_ in list(s.shapes): s.shapes._spTree.remove(sh_._element)
 tbox(s,0.54,0.42,SW-1.1,0.45,"2. 그러나 레버리지의 장점은 개인의 매매 패턴과 맞지 않는다",21,True,DARK,FT_B)
 tbox(s,0.55,0.98,SW-1.1,0.6,
      "① 상승하면 수익을 확정해 버려(매도) 추세장의 복리 효과를 누리지 못하고, ② 하락하면 지수가 원상복귀될 때까지 버팁니다. "
-     "결국 복리는 놓치고 변동성 잠식만 얻습니다 — 레버리지 ETF의 실제 설정(상장주식수)으로 확인됩니다.",13.5,None,DARK)
-s.shapes.add_picture(os.path.join('img','lev15_flow2.png'),Inches(0.45),Inches(1.90),width=Inches(9.95))
-mini_table(s,0.75,5.02,4.55,[
-    ("KOSPI200",f"{gl_*100:+,.0f}%"),
-    ("단순 2배 (가상)",f"{sl_*100:+,.0f}%"),
-    ("***** 레버리지 ETF (실제)",f"{al_*100:+,.0f}%"),
-    ("상장주식수","173 → 48백만주 (-72%)")],hl_row=3)
-mini_table(s,5.55,5.02,4.55,[
-    ("KOSPI200",f"{gr_*100:+.1f}% (복귀·상회)"),
-    ("단순 2배 (가상)",f"{sr_*100:+.1f}%"),
-    ("***** 레버리지 ETF (실제)",f"{ar_*100:+.1f}% (잠식 {ar_*100-sr_*100:+.1f}%p)"),
-    ("상장주식수","155 → 427 → 156백만주")],hl_row=2)
-tbox(s,0.8,6.40,SW-1.7,0.5,"상승 때는 +1,437%를 두고 일찍 떠났고, 하락 때는 버텨서 잠식만 얻었습니다 — 장점과 정반대로 움직이는 것입니다.",13,True,ORANGE_,FT_B)
+     "결국 복리는 놓치고 변동성 잠식만 얻습니다 — 레버리지 ETF의 실제 설정(상장주식수)과 수익률로 확인됩니다.",13.5,None,DARK)
+s.shapes.add_picture(os.path.join('img','lev15_flow2.png'),Inches(0.45),Inches(1.98),width=Inches(9.95))
+tbox(s,0.8,5.95,SW-1.7,0.5,"상승 때는 +1,437%를 두고 일찍 떠났고, 하락 때는 버텨서 잠식만 얻었습니다 — 장점과 정반대로 움직이는 것입니다.",13.5,True,ORANGE_,FT_B)
 tbox(s,0.55,SH-0.62,SW-1.1,0.4,
      "※ ***** 레버리지 ETF 상장주식수·수정주가, ***** 200 ETF 수정주가 실측 (좌 2025.04.30~2026.06.22, 우 2020.01.02~2020.08.31) · 단순 2배 = 지수 누적수익률×2 (가상) · 참고: 월간 지수수익률 vs 주식수 증감률 상관 -0.56 (2019~2026) · 데이터: ETF데이터",8,False,GRAY_,FT_M)
 prs.save(DST)
