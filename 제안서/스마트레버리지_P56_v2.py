@@ -44,7 +44,7 @@ r1=w1/w1.iloc[0]*100; r2=w2/w2.iloc[0]*100
 print(f"[P5-①] 기초 {r1.iloc[-1]-100:+.1f}% · 레버리지 {r2.iloc[-1]-100:+.1f}%")
 fig,ax=plt.subplots(figsize=FS,dpi=150)
 ax.plot(r1.index,r1.values,color=NAVY,lw=1.5,label='KOSPI200')
-ax.plot(r2.index,r2.values,color=RED,lw=1.5,label='***** 레버리지')
+ax.plot(r2.index,r2.values,color=RED,lw=1.5,label='***** 레버리지 ETF')
 ax.axhline(100,color='#b8c6d4',lw=0.9,ls='--')
 ax.annotate(f"지수 {r1.iloc[-1]-100:+.1f}% (제자리)",xy=(pd.Timestamp('2023-04-01'),114),
             fontsize=9.5,fontweight='bold',color=NAVY,ha='left')
@@ -66,7 +66,7 @@ gl=float(rl.iloc[-1])-100; gs=float(rs.iloc[-1])-100
 print(f"[P5-②] {a.date()}~{b.date()}: 주가 실제 {gs:+.1f}% · 레버리지 실제 {gl:+.1f}% ({h.iloc[0]:,.0f}→{h.iloc[-1]:,.0f}원)")
 fig,ax=plt.subplots(figsize=FS,dpi=150)
 ax.plot(rs.index,rs.values,color=NAVY,lw=1.6,label='SK하이닉스 주가 (실제)')
-ax.plot(rl.index,rl.values,color=RED,lw=1.7,label='***** 하이닉스 레버리지 (실제)')
+ax.plot(rl.index,rl.values,color=RED,lw=1.7,label='***** 하이닉스 레버리지 ETF (실제)')
 ax.axhline(100,color='#b8c6d4',lw=0.9,ls='--')
 ax.annotate(f"주가\n{gs:+.1f}%\n(보합)",xy=(rs.index[-1],rs.iloc[-1]),xytext=(6,-4),
             textcoords='offset points',fontsize=9.5,fontweight='bold',color=NAVY)
@@ -90,7 +90,7 @@ gl=float(rl.iloc[-1])-100; gs=float(rs.iloc[-1])-100
 print(f"[P5-③] {a.date()}~{b.date()}: 주가 실제 {gs:+.1f}% · 레버리지 실제 {gl:+.1f}% ({h.iloc[0]:,.0f}→{h.iloc[-1]:,.0f}원)")
 fig,ax=plt.subplots(figsize=FS,dpi=150)
 ax.plot(rs.index,rs.values,color=NAVY,lw=1.6,label='SK하이닉스 주가 (실제)')
-ax.plot(rl.index,rl.values,color=RED,lw=1.7,label='***** 하이닉스 레버리지 (실제)')
+ax.plot(rl.index,rl.values,color=RED,lw=1.7,label='***** 하이닉스 레버리지 ETF (실제)')
 ax.axhline(100,color='#b8c6d4',lw=0.9,ls='--')
 ax.annotate(f"주가\n{gs:+.1f}%\n(제자리)",xy=(rs.index[-1],rs.iloc[-1]),xytext=(6,-4),
             textcoords='offset points',fontsize=9.5,fontweight='bold',color=NAVY)
@@ -128,7 +128,7 @@ tmin=r2.idxmin()
 print(f"[P6-②] {a.date()}~{b.date()}: K200 {r1.iloc[-1]-100:+.1f}% · 레버리지 {r2.iloc[-1]-100:+.1f}% · 최저 {r2.min()-100:+.1f}% ({tmin.date()})")
 fig,ax=plt.subplots(figsize=FS,dpi=150)
 ax.plot(r1.index,r1.values,color=NAVY,lw=1.6,label='KOSPI200')
-ax.plot(r2.index,r2.values,color=RED,lw=1.6,label='***** 레버리지')
+ax.plot(r2.index,r2.values,color=RED,lw=1.6,label='***** 레버리지 ETF')
 ax.axhline(100,color='#b8c6d4',lw=0.9,ls='--')
 ax.annotate(f"지수 {r1.iloc[-1]-100:+.1f}%\n(제자리)",xy=(r1.index[-1],r1.iloc[-1]),xytext=(-56,10),
             textcoords='offset points',fontsize=9.5,fontweight='bold',color=NAVY)
