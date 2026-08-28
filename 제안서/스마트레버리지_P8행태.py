@@ -31,9 +31,8 @@ def panel(ax,a,b):
     ax.fill_between(v.index,v.values/1e6,color='#f3c69a',alpha=0.9,label='***** 레버리지 ETF 상장주식수 (백만주, 좌)')
     ax.set_ylabel('상장주식수 (백만주)',fontsize=8.5,color=AMBER); ax.tick_params(axis='y',labelcolor=AMBER,labelsize=8.5)
     ax2=ax.twinx()
-    ax2.plot(ix.index,ix.values,color=NAVY,lw=1.6,label='KOSPI200 (우, 시작=100)')
-    ax2.plot(lx.index,lx.values,color=RED,lw=1.8,label='***** 레버리지 ETF 수익률 (우, 시작=100)')
-    ax2.set_ylabel('수익률 (시작=100)',fontsize=8.5,color=NAVY); ax2.tick_params(axis='y',labelcolor=NAVY,labelsize=8.5)
+    ax2.plot(ix.index,ix.values,color=NAVY,lw=1.7,label='KOSPI200 (우, 시작=100)')
+    ax2.set_ylabel('KOSPI200 (시작=100)',fontsize=8.5,color=NAVY); ax2.tick_params(axis='y',labelcolor=NAVY,labelsize=8.5)
     for spn in ['top']: ax.spines[spn].set_visible(False); ax2.spines[spn].set_visible(False)
     ax.grid(axis='y',color='#eee',lw=0.6); ax.set_axisbelow(True); ax.tick_params(axis='x',labelsize=8.5)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%y.%m'))
@@ -50,11 +49,9 @@ s0,s1=float(v.iloc[0])/1e6,float(v.iloc[-1])/1e6
 a1.set_title(f"① 상승 추세장 : 오르면 팔아버린다\n(2025.04 ~ 2026.06 · KOSPI200 {g*100:+.0f}%)",fontsize=10.5,fontweight='bold',color='#222')
 a1.annotate(f"주식수 {s0:,.0f} → {s1:,.0f}백만주 ({(s1/s0-1)*100:+.0f}%)\n= 수익 확정 매도 → 복리를 못 누린다",
             xy=(0.03,0.86),xycoords='axes fraction',fontsize=9.5,fontweight='bold',color=AMBER)
-a1.set_xlim(a,b+pd.Timedelta(days=95))
-ax2.annotate(f"레버리지\n{gl2:+,.0f}%",xy=(lx.index[-1],float(lx.iloc[-1])),xytext=(5,-16),
-             textcoords='offset points',fontsize=9.5,fontweight='bold',color=RED)
+a1.set_xlim(a,b+pd.Timedelta(days=70))
 ax2.annotate(f"지수\n{g*100:+.0f}%",xy=(ix.index[-1],float(ix.iloc[-1])),xytext=(5,-14),
-             textcoords='offset points',fontsize=9,fontweight='bold',color=NAVY)
+             textcoords='offset points',fontsize=9.5,fontweight='bold',color=NAVY)
 ymax=v.max()/1e6; a1.set_ylim(0,ymax*1.55)
 print(f"[좌] 지수 {g*100:+.0f}% · 레버리지 {gl2:+.0f}% · 주식수 {s0:,.0f}→{s1:,.0f}백만주 ({(s1/s0-1)*100:+.0f}%)")
 
@@ -74,18 +71,16 @@ ax2.annotate(f"원상복귀\n{trec.strftime('%Y.%m.%d')}",xy=(trec,100),xytext=(
 b1.annotate(f"급락하자 주식수 {s0:,.0f} → {smax:,.0f}백만주 ({(smax/s0-1)*100:+.0f}%)\n= 원상복귀까지 버티기 → 잠식만 얻는다",
             xy=(0.26,0.88),xycoords='axes fraction',fontsize=9.5,fontweight='bold',color=AMBER)
 ax2.annotate(f"지수 {g*100:+.1f}% (복귀·상회)",xy=(b-pd.Timedelta(days=4),113),ha='right',
-             fontsize=9,fontweight='bold',color=NAVY)
-ax2.annotate(f"레버리지 {gl2:+.1f}% (잠식)",xy=(b-pd.Timedelta(days=4),48),ha='right',
-             fontsize=9.5,fontweight='bold',color=RED)
+             fontsize=9.5,fontweight='bold',color=NAVY)
 b1.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
 ymax=v.max()/1e6; b1.set_ylim(0,ymax*1.55)
 print(f"[우] 급락 {gmin*100:+.0f}% · 지수 {g*100:+.1f}% · 레버리지 {gl2:+.1f}% · 원상복귀 {trec.date()} · 주식수 {s0:,.0f}→최대 {smax:,.0f}→기말 {send:,.0f}백만주")
 
 import matplotlib.lines as mlines
 h1,l1=a1.get_legend_handles_labels()
-fig.legend(h1+[mlines.Line2D([0],[0],color=NAVY,lw=1.6),mlines.Line2D([0],[0],color=RED,lw=1.8)],
-           l1+['KOSPI200 (우, 시작=100)','***** 레버리지 ETF 수익률 (우, 시작=100)'],
-           fontsize=8.5,loc='lower center',ncol=3,frameon=False,bbox_to_anchor=(0.5,-0.02))
+fig.legend(h1+[mlines.Line2D([0],[0],color=NAVY,lw=1.7)],
+           l1+['KOSPI200 (우, 시작=100)'],
+           fontsize=8.5,loc='lower center',ncol=2,frameon=False,bbox_to_anchor=(0.5,-0.02))
 plt.tight_layout(rect=[0,0.06,1,1])
 plt.savefig(os.path.join('img','lev15_flow2.png')); plt.close()
 print("차트 저장: lev15_flow2.png")
@@ -114,7 +109,7 @@ for sh_ in list(s.shapes): s.shapes._spTree.remove(sh_._element)
 tbox(s,0.54,0.42,SW-1.1,0.45,"2. 그러나 레버리지의 장점은 개인의 매매 패턴과 맞지 않는다",21,True,DARK,FT_B)
 tbox(s,0.55,0.98,SW-1.1,0.6,
      "① 상승하면 수익을 확정해 버려(매도) 추세장의 복리 효과를 누리지 못하고, ② 하락하면 지수가 원상복귀될 때까지 버팁니다. "
-     "결국 복리는 놓치고 변동성 잠식만 얻습니다 — 레버리지 ETF의 실제 설정(상장주식수)과 수익률로 확인됩니다.",13.5,None,DARK)
+     "결국 복리는 놓치고 변동성 잠식만 얻습니다 — 레버리지 ETF의 실제 설정(상장주식수)으로 확인됩니다.",13.5,None,DARK)
 s.shapes.add_picture(os.path.join('img','lev15_flow2.png'),Inches(0.45),Inches(1.98),width=Inches(9.95))
 tbox(s,0.8,5.95,SW-1.7,0.5,"상승 때는 +1,437%를 두고 일찍 떠났고, 하락 때는 버텨서 잠식만 얻었습니다 — 장점과 정반대로 움직이는 것입니다.",13.5,True,ORANGE_,FT_B)
 tbox(s,0.55,SH-0.62,SW-1.1,0.4,
